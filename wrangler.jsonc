@@ -42,6 +42,12 @@
 			"database_name": "yoin-db",
 			"database_id": "69b5b052-bd69-416b-9623-877e1fd19e85"
 		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "RATE_LIMIT",
+			"id": "b8410b718e85450bbb58104850673790"
+		}
 	]
 	/**
 	 * Smart Placement

@@ -39,7 +39,18 @@ export function normalizeHandle(raw: string): string {
   return raw.normalize("NFKC").trim().toLowerCase();
 }
 
-export function validateHandle(raw: string): { ok: true; normalized: string } | { ok: false; error: HandleValidationError } {
+/**
+ * 表示用(handle列)の正規化。大文字小文字・元の見た目は保持しつつ、
+ * 全角英数字だけは半角に揃える(NFKC)。normalizeHandle()と同じNFKC変換を
+ * 呼び出し側で再実装させない(2箇所に分散すると片方だけ変更し忘れる事故が起きる)。
+ */
+function toDisplayHandle(raw: string): string {
+  return raw.normalize("NFKC").trim();
+}
+
+export function validateHandle(
+  raw: string,
+): { ok: true; normalized: string; display: string } | { ok: false; error: HandleValidationError } {
   const normalized = normalizeHandle(raw);
 
   if (!HANDLE_PATTERN.test(normalized)) {
@@ -48,5 +59,5 @@ export function validateHandle(raw: string): { ok: true; normalized: string } | 
   if (RESERVED_HANDLES.has(normalized)) {
     return { ok: false, error: "reserved" };
   }
-  return { ok: true, normalized };
+  return { ok: true, normalized, display: toDisplayHandle(raw) };
 }
