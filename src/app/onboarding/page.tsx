@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 
 export default function OnboardingPage() {
 	const router = useRouter();
@@ -21,6 +22,12 @@ export default function OnboardingPage() {
 		});
 
 		if (res.ok) {
+			// handle設定はbetter-authのupdateUserを経由しないKyselyの直接UPDATEのため、
+			// session cookie cacheは自動で再発行されない。ここで明示的にキャッシュを
+			// 無効化してセッションを取り直し、cookieを最新化してから遷移する。
+			// (未対応だと最大5分、/ の判定が古いhandle_normalizedを見て/onboardingへ
+			// 戻され続ける。PRレビューで発覚、詳細はKnowledge/better-auth-cookie-cache-direct-update.md)
+			await authClient.getSession({ query: { disableCookieCache: true } });
 			router.push("/");
 			return;
 		}
