@@ -1,0 +1,15 @@
+# Load .env.development* files when running `wrangler dev`
+NEXTJS_ENV=development
+
+# better-auth
+# openssl rand -base64 32 等で生成する
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=http://localhost:3000
+
+# Google OAuth (https://console.cloud.google.com/apis/credentials)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# マジックリンク送信 (https://resend.com でアカウント・送信ドメインを用意する)
+RESEND_API_KEY=
+EMAIL_FROM=
