@@ -11,6 +11,16 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+async function findExistingCatalogId(db: Kysely<Database>, ndlBibId: string): Promise<string | null> {
+  const existing = await db
+    .selectFrom("source_records")
+    .select("catalog_entity_id")
+    .where("source", "=", "ndl")
+    .where("source_id", "=", ndlBibId)
+    .executeTakeFirst();
+  return existing?.catalog_entity_id ?? null;
+}
+
 /**
  * NDLの書籍候補をcatalog_entities/source_recordsに正規化して保存する。
  * 既に同じNDL書誌IDのsource_recordsがあれば、新規作成せず既存のcatalog_entity_idを返す
@@ -22,44 +32,38 @@ function nowSeconds(): number {
  */
 export async function findOrCreateBookCatalogEntity(
   db: Kysely<Database>,
+  d1: D1Database,
   candidate: NdlBookCandidate,
   googleBooksApiKey?: string,
 ): Promise<string> {
-  const existing = await db
-    .selectFrom("source_records")
-    .select("catalog_entity_id")
-    .where("source", "=", "ndl")
-    .where("source_id", "=", candidate.ndlBibId)
-    .executeTakeFirst();
-
-  if (existing) {
-    return existing.catalog_entity_id;
+  const existingId = await findExistingCatalogId(db, candidate.ndlBibId);
+  if (existingId) {
+    return existingId;
   }
 
   const catalogId = uuidv7();
   const now = nowSeconds();
 
-  // 書影はISBNが分かっている場合のみ取得を試みる。ISBNがない書籍
-  // (古い本・同人誌等)は取得自体を諦める(セクション5.4の決定通り)
-  const coverImageUrl = candidate.isbn
-    ? (await fetchCoverByIsbn(candidate.isbn, googleBooksApiKey).catch(() => null))?.thumbnail ?? null
-    : null;
-
-  await db
+  // catalog_entities + source_records(ndl)の作成はD1のネイティブbatch()で
+  // 原子的に実行する(全部成功 or 全部失敗)。KyselyのdbTransaction()相当は
+  // kysely-d1では実際には何もしないスタブ(D1自体がインタラクティブな
+  // トランザクションを持たないため)であることをコードレビューで確認済み。
+  // compile()でSQL+パラメータに変換し、D1本来のprepare().bind()に渡す。
+  const insertCatalogEntity = db
     .insertInto("catalog_entities")
     .values({
       id: catalogId,
       genre: "book",
       title: candidate.title,
-      primary_image_ref: coverImageUrl,
+      primary_image_ref: null,
       owner_user_id: null,
       merged_into_id: null,
       created_at: now,
       updated_at: now,
     })
-    .execute();
+    .compile();
 
-  await db
+  const insertSourceRecord = db
     .insertInto("source_records")
     .values({
       id: uuidv7(),
@@ -79,25 +83,61 @@ export async function findOrCreateBookCatalogEntity(
       created_at: now,
       updated_at: now,
     })
-    .execute();
+    .compile();
 
-  if (coverImageUrl) {
-    await db
-      .insertInto("source_records")
-      .values({
-        id: uuidv7(),
-        catalog_entity_id: catalogId,
-        source: "google_books",
-        source_id: candidate.isbn ?? candidate.ndlBibId,
-        source_url: null,
-        // imageLinksのみ(google-books.tsの型自体がtitle/description等を持てない設計)
-        raw_fields: JSON.stringify({ thumbnail: coverImageUrl }),
-        deletion_status: "active",
-        cached_at: null,
-        created_at: now,
-        updated_at: now,
-      })
-      .execute();
+  try {
+    await d1.batch([
+      d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
+      d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+    ]);
+  } catch (err) {
+    // UNIQUE(source, source_id)違反 = 他ユーザーがほぼ同時に同じ本を初めて
+    // 追加した(レース条件)。孤児のcatalog_entities行を残さないよう、
+    // 勝者側が作成した既存行を再取得して返す
+    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+      const raceWinnerId = await findExistingCatalogId(db, candidate.ndlBibId);
+      if (raceWinnerId) {
+        return raceWinnerId;
+      }
+    }
+    throw err;
+  }
+
+  // 書影取得はここから先。ISBNがない書籍(古い本・同人誌等)は取得自体を
+  // 諦める(セクション5.4の決定通り)。失敗しても上記の原子的な書き込みは
+  // 既に成功済みなので、primary_image_refがnullのまま残るだけで許容する
+  if (candidate.isbn) {
+    try {
+      const imageLinks = await fetchCoverByIsbn(candidate.isbn, googleBooksApiKey);
+      const coverImageUrl = imageLinks?.thumbnail ?? null;
+      if (coverImageUrl) {
+        await db
+          .updateTable("catalog_entities")
+          .set({ primary_image_ref: coverImageUrl, updated_at: nowSeconds() })
+          .where("id", "=", catalogId)
+          .execute();
+
+        await db
+          .insertInto("source_records")
+          .values({
+            id: uuidv7(),
+            catalog_entity_id: catalogId,
+            source: "google_books",
+            source_id: candidate.isbn,
+            source_url: null,
+            // imageLinksのみ(google-books.tsの型自体がtitle/description等を持てない設計)
+            raw_fields: JSON.stringify({ thumbnail: coverImageUrl }),
+            deletion_status: "active",
+            cached_at: null,
+            created_at: nowSeconds(),
+            updated_at: nowSeconds(),
+          })
+          .execute();
+      }
+    } catch {
+      // 書影取得の失敗(タイムアウト・429等)は書誌情報の登録自体を
+      // 失敗させない。primary_image_ref=nullのまま返す
+    }
   }
 
   return catalogId;

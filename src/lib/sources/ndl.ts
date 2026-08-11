@@ -138,10 +138,20 @@ async function sruSearch(cql: string, fetchCount: number, startRecord: number): 
   return { candidates, nextStartRecord };
 }
 
+export type SearchField = "title" | "creator";
+
 export interface SearchBooksResult {
   candidates: NdlBookCandidate[];
   /** 「もっと探す」で次に渡すトークン。nullなら次ページなし */
   nextStartRecord: number | null;
+  /**
+   * 実際に使われた検索フィールド。title検索が0件でcreatorにフォールバック
+   * した場合は"creator"になる。「もっと探す」でstartRecordを渡し直す際は
+   * このfieldも一緒に渡すこと。渡さないと2回目の呼び出しが常にtitle検索に
+   * なり、creatorクエリの結果セット内の位置を全く別のtitleクエリに対して
+   * 使うことになり不整合が起きる(レビューで発覚したバグ)。
+   */
+  field: SearchField;
 }
 
 /**
@@ -151,21 +161,32 @@ export interface SearchBooksResult {
  * NDLのtitle部分一致検索は関連度の低い資料も大量に拾うため(CQLのexact演算子も
  * 効果がないことを確認済み)、1回のAPI呼び出しでは目的の本が見つからないことが
  * ある。startRecordを指定して呼び直すと、続きの範囲から再度検索できる
- * (「もっと探す」ボタン用)。
+ * (「もっと探す」ボタン用)。fieldを指定すると、そのフィールドで直接検索する
+ * (「もっと探す」で継続する場合に使う。フォールバックは初回検索時のみ行う)。
  */
-export async function searchBooks(query: string, limit = 10, startRecord = 1): Promise<SearchBooksResult> {
+export async function searchBooks(
+  query: string,
+  limit = 10,
+  startRecord = 1,
+  field?: SearchField,
+): Promise<SearchBooksResult> {
   const escaped = query.replace(/"/g, '\\"');
   const fetchCount = limit * FETCH_MULTIPLIER;
 
-  let result = await sruSearch(`title="${escaped}"`, fetchCount, startRecord);
-  if (result.candidates.length === 0 && startRecord === 1) {
+  let usedField: SearchField = field ?? "title";
+  let result = await sruSearch(`${usedField}="${escaped}"`, fetchCount, startRecord);
+
+  // フォールバックは「fieldが指定されていない初回検索」の場合のみ行う。
+  // 「もっと探す」でfieldが明示されている場合は、そのフィールドのまま続ける
+  if (result.candidates.length === 0 && field === undefined && startRecord === 1) {
+    usedField = "creator";
     result = await sruSearch(`creator="${escaped}"`, fetchCount, startRecord);
   }
 
   const sorted = [...result.candidates].sort(
     (a, b) => titleMatchScore(a.title, query) - titleMatchScore(b.title, query),
   );
-  return { candidates: sorted.slice(0, limit), nextStartRecord: result.nextStartRecord };
+  return { candidates: sorted.slice(0, limit), nextStartRecord: result.nextStartRecord, field: usedField };
 }
 
 /**
@@ -174,4 +195,29 @@ export async function searchBooks(query: string, limit = 10, startRecord = 1): P
 export async function findBookByIsbn(isbn: string): Promise<NdlBookCandidate | null> {
   const { candidates } = await sruSearch(`isbn="${isbn}"`, 1, 1);
   return candidates[0] ?? null;
+}
+
+/**
+ * クライアントが検索結果からそのまま送ってきた書籍候補を、NDLへの再照会で
+ * 検証する。ISBNがあればISBN完全一致で照会し、bibIdが一致すればその結果
+ * (=NDLから取得し直した値)を正として返す。ISBNがない場合はtitleヒントで
+ * 検索し、ndlBibIdが一致する候補を探す。どちらも見つからなければnull
+ * (=クライアントの申告が信用できないため追加を拒否する)。
+ *
+ * NDL SRUはbibID単体でのクエリをサポートしない(`identifier="{id}"`は
+ * illegal query syntaxで拒否されることを実際のAPIで確認済み)ため、
+ * ISBNまたはtitleヒントを経由した間接的な再照会になる。
+ */
+export async function verifyBookCandidate(
+  ndlBibId: string,
+  titleHint: string,
+  isbn: string | null,
+): Promise<NdlBookCandidate | null> {
+  if (isbn) {
+    const byIsbn = await findBookByIsbn(isbn);
+    return byIsbn && byIsbn.ndlBibId === ndlBibId ? byIsbn : null;
+  }
+
+  const { candidates } = await sruSearch(`title="${titleHint.replace(/"/g, '\\"')}"`, 50, 1);
+  return candidates.find((c) => c.ndlBibId === ndlBibId) ?? null;
 }

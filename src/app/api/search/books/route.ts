@@ -1,6 +1,10 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
-import { searchBooks } from "@/lib/sources/ndl";
+import { searchBooks, type SearchField } from "@/lib/sources/ndl";
+
+function parseField(value: string | null): SearchField | undefined {
+  return value === "title" || value === "creator" ? value : undefined;
+}
 
 export async function GET(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -18,9 +22,13 @@ export async function GET(request: Request) {
   }
   const startRecordParam = searchParams.get("startRecord");
   const startRecord = startRecordParam ? Number(startRecordParam) : 1;
+  // 「もっと探す」で継続する場合、前回のレスポンスが返したfieldをそのまま
+  // 渡してもらう(渡されなければ初回検索として扱い、title→creatorの
+  // フォールバック判定が働く)
+  const field = parseField(searchParams.get("field"));
 
   try {
-    const result = await searchBooks(query, 10, Number.isFinite(startRecord) ? startRecord : 1);
+    const result = await searchBooks(query, 10, Number.isFinite(startRecord) ? startRecord : 1, field);
     return Response.json(result);
   } catch {
     return Response.json(

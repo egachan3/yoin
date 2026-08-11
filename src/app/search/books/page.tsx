@@ -15,6 +15,7 @@ interface BookCandidate {
 interface SearchResponse {
 	candidates: BookCandidate[];
 	nextStartRecord: number | null;
+	field: "title" | "creator";
 }
 
 export default function BookSearchPage() {
@@ -22,15 +23,22 @@ export default function BookSearchPage() {
 	const [query, setQuery] = useState("");
 	const [candidates, setCandidates] = useState<BookCandidate[]>([]);
 	const [nextStartRecord, setNextStartRecord] = useState<number | null>(null);
+	// 「もっと探す」でstartRecordを渡し直す際、初回検索で実際に使われた
+	// フィールド(title→creatorへのフォールバックが起きたかどうか)を
+	// 一緒に渡す。渡さないと2回目の呼び出しが別クエリの続きを取得してしまう
+	const [searchField, setSearchField] = useState<"title" | "creator">("title");
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<string | null>(null);
 
-	async function runSearch(startRecord: number, append: boolean) {
+	async function runSearch(startRecord: number, append: boolean, field?: "title" | "creator") {
 		if (!query.trim()) return;
 		setStatus("loading");
 		const url = new URL("/api/search/books", window.location.origin);
 		url.searchParams.set("q", query);
 		url.searchParams.set("startRecord", String(startRecord));
+		if (field) {
+			url.searchParams.set("field", field);
+		}
 
 		const res = await fetch(url.toString());
 		if (!res.ok) {
@@ -40,6 +48,7 @@ export default function BookSearchPage() {
 		const data = (await res.json()) as SearchResponse;
 		setCandidates((prev) => (append ? [...prev, ...data.candidates] : data.candidates));
 		setNextStartRecord(data.nextStartRecord);
+		setSearchField(data.field);
 		setStatus("idle");
 	}
 
@@ -104,7 +113,7 @@ export default function BookSearchPage() {
 					type="button"
 					className="btn btn-ghost btn-block"
 					style={{ marginTop: "var(--space-4)" }}
-					onClick={() => runSearch(nextStartRecord, true)}
+					onClick={() => runSearch(nextStartRecord, true, searchField)}
 					disabled={status === "loading"}
 				>
 					{status === "loading" ? "読み込み中…" : "もっと探す"}
