@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseBibResource, titleMatchScore } from "./ndl";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parseBibResource, titleMatchScore, verifyBookCandidate } from "./ndl";
 
 // 実際のNDLサーチAPIレスポンス(isbn=9784062748681)から採取した書誌情報。
 // タグ構造・データ形式が変わっていないかを検知するための固定サンプル。
@@ -82,6 +82,76 @@ describe("parseBibResource", () => {
 
   it("BibResourceを含まないXMLはnullを返す", () => {
     expect(parseBibResource("<rdf:RDF></rdf:RDF>")).toBeNull();
+  });
+});
+
+// sruSearch()が受け取る実際のSRU封筒(searchRetrieveResponse)を模したXMLを組み立てる。
+// recordDataの中身は実APIと同じくHTMLエンティティでエスケープする必要がある
+// (fast-xml-parserが外側をパースする際、テキストノードとしてデコードされて
+// 初めて内側のRDF/XMLとして扱える)
+function escapeForRecordData(xml: string): string {
+  return xml.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function buildSruResponse(records: string[], nextStartRecord: number | null): string {
+  const recordsXml = records
+    .map(
+      (r) =>
+        `<record><recordSchema>info:srw/schema/1/dc-v1.1</recordSchema><recordPacking>string</recordPacking><recordData>${escapeForRecordData(r)}</recordData></record>`,
+    )
+    .join("");
+  const nextTag = nextStartRecord !== null ? `<nextRecordPosition>${nextStartRecord}</nextRecordPosition>` : "";
+  return `<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/"><version>1.2</version><numberOfRecords>${records.length}</numberOfRecords>${nextTag}<records>${recordsXml}</records></searchRetrieveResponse>`;
+}
+
+describe("verifyBookCandidate", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("ISBNなしの場合、1ページ目に見つからなくても複数ページ辿って照合する(回帰テスト)", async () => {
+    // 1ページ目には目的の本(25056492)が含まれず、2ページ目で見つかるシナリオ。
+    // 修正前は先頭50件(=1ページ目)しか見ていなかったため、このケースは
+    // not_found(null)を返してしまっていた
+    const page1 = buildSruResponse([NOROUEI_NO_MORI_XML], 51);
+    const page2 = buildSruResponse([CO_AUTHORED_XML], null);
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(page1)).mockResolvedValueOnce(new Response(page2));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await verifyBookCandidate("25056492", "嫌われる勇気", null);
+
+    expect(result?.ndlBibId).toBe("25056492");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 2回目の呼び出しがstartRecord=51(1回目のnextRecordPosition)を
+    // 引き継いでいることを確認する
+    const secondCallUrl = new URL(fetchMock.mock.calls[1][0] as string);
+    expect(secondCallUrl.searchParams.get("startRecord")).toBe("51");
+  });
+
+  it("3ページ探しても見つからなければnullを返し、4回目は呼ばない(上限の確認)", async () => {
+    const pageWithoutMatch = buildSruResponse([NOROUEI_NO_MORI_XML], 999);
+    // Response.text()は一度しか読めないため、呼び出しのたびに新しいResponseを生成する
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response(pageWithoutMatch)));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await verifyBookCandidate("存在しないbibId", "何か", null);
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("ISBNがあればtitleヒントを使わずISBN完全一致のみで照合する", async () => {
+    const isbnResponse = buildSruResponse([NOROUEI_NO_MORI_XML], null);
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(isbnResponse));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await verifyBookCandidate("7489542", "全く関係ないタイトル", "4062748681");
+
+    expect(result?.ndlBibId).toBe("7489542");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const calledUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(calledUrl.searchParams.get("query")).toContain("isbn=");
   });
 });
 

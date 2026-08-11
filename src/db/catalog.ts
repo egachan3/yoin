@@ -152,12 +152,14 @@ export async function findOrCreateBookCatalogEntity(
           d1.prepare(insertGoogleBooksRecord.sql).bind(...insertGoogleBooksRecord.parameters),
         ]);
       } catch (err) {
-        // UNIQUE(source, source_id)違反(=既に別経由で登録済み)は許容して
-        // 書影なしのまま続行する。それ以外の想定外エラーも、書誌情報の登録
-        // 自体は既に成功済みなので同様に握りつぶす(書影は無くてもUI上は
-        // プレースホルダで表示される)
-        if (!(err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message))) {
-          // 通信系以外の想定外エラー。書誌情報の登録は成功させたいのでここでは再送出しない
+        // UNIQUE(source, source_id)違反(=既に別経由で登録済み)は想定内なので
+        // 無言で許容する。それ以外の想定外エラーは、書誌情報の登録自体は
+        // 既に成功済みなので処理は継続する(書影は無くてもUI上はプレースホルダ
+        // で表示される)が、原因調査ができるようログにだけ残す
+        // (レビュー指摘: 以前はここが両者を区別しない空のif分岐になっていた)
+        const isKnownConflict = err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message);
+        if (!isKnownConflict) {
+          console.error("[findOrCreateBookCatalogEntity] 書影の登録に失敗しました", err);
         }
       }
     }
