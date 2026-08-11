@@ -120,7 +120,10 @@ export async function searchRecordings(query: string, limit = 10, offset = 0): P
   const json: unknown = await res.json();
   const parsed = RecordingSearchResponseSchema.parse(json);
   const candidates = (parsed.recordings ?? []).map(toRecordingCandidate);
-  const nextOffset = offset + candidates.length < parsed.count ? offset + limit : null;
+  // limit(要求件数)ではなくcandidates.length(実際に返ってきた件数)を基準に
+  // 次のoffsetを計算する。要求件数より少ない件数しか返らなかった回があっても、
+  // 未取得の候補を飛ばさない(NDLの「もっと探す」ページングバグと同種の問題を避ける。レビュー指摘)
+  const nextOffset = offset + candidates.length < parsed.count ? offset + candidates.length : null;
   return { candidates, nextOffset };
 }
 
@@ -141,7 +144,10 @@ export async function searchReleaseGroups(query: string, limit = 10, offset = 0)
   const json: unknown = await res.json();
   const parsed = ReleaseGroupSearchResponseSchema.parse(json);
   const candidates = (parsed["release-groups"] ?? []).map(toReleaseGroupCandidate);
-  const nextOffset = offset + candidates.length < parsed.count ? offset + limit : null;
+  // limit(要求件数)ではなくcandidates.length(実際に返ってきた件数)を基準に
+  // 次のoffsetを計算する。要求件数より少ない件数しか返らなかった回があっても、
+  // 未取得の候補を飛ばさない(NDLの「もっと探す」ページングバグと同種の問題を避ける。レビュー指摘)
+  const nextOffset = offset + candidates.length < parsed.count ? offset + candidates.length : null;
   return { candidates, nextOffset };
 }
 
@@ -188,7 +194,9 @@ export async function verifyReleaseGroupById(mbid: string): Promise<MusicCandida
 async function fetchCoverArt(kind: "release" | "release-group", mbid: string): Promise<string | null> {
   const url = `${CAA_BASE}/${kind}/${encodeURIComponent(mbid)}/front-500`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000), redirect: "follow" });
+    // HEADでリダイレクト先URLだけを読み取る。GETだと本文(画像バイナリ本体、
+    // 数十〜数百KB)を取得してres.urlだけ見て捨てることになり無駄が大きい(レビュー指摘)
+    const res = await fetch(url, { method: "HEAD", signal: AbortSignal.timeout(5000), redirect: "follow" });
     if (!res.ok) return null;
     return res.url;
   } catch {

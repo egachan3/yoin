@@ -283,31 +283,61 @@ export async function findOrCreateMusicCatalogEntity(
         .where("id", "=", catalogId)
         .compile();
 
-      const insertCoverArtRecord = db
-        .insertInto("source_records")
-        .values({
-          id: uuidv7(),
-          catalog_entity_id: catalogId,
-          source: "cover_art_archive",
-          source_id: coverArtReleaseId,
-          source_url: null,
-          raw_fields: JSON.stringify({ front: coverImageUrl }),
-          deletion_status: "active",
-          cached_at: null,
-          created_at: nowSeconds(),
-          updated_at: nowSeconds(),
-        })
-        .compile();
+      // 同じMusicBrainz release(アルバム)には複数のcatalog_entity(収録曲ごと)が
+      // 紐づき得るため、source_records(source="cover_art_archive")のsource_idは
+      // catalog_entity間で重複しうる(UNIQUE(source, source_id)はndl/musicbrainz/itunes
+      // のような1エンティティ=1レコードの主識別子を想定した制約で、cover_art_archiveの
+      // ような複数エンティティ間で共有され得る派生レコードとは前提が異なる。レビュー指摘)。
+      // 既に同じsource_idのレコードがあればINSERTをスキップし、UPDATEのみ行う
+      const existingCoverRecord = await db
+        .selectFrom("source_records")
+        .select("id")
+        .where("source", "=", "cover_art_archive")
+        .where("source_id", "=", coverArtReleaseId)
+        .executeTakeFirst();
 
-      try {
-        await d1.batch([
-          d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters),
-          d1.prepare(insertCoverArtRecord.sql).bind(...insertCoverArtRecord.parameters),
-        ]);
-      } catch (err) {
-        const isKnownConflict = err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message);
-        if (!isKnownConflict) {
+      if (existingCoverRecord) {
+        try {
+          await d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters).run();
+        } catch (err) {
           console.error("[findOrCreateMusicCatalogEntity] ジャケット画像の登録に失敗しました", err);
+        }
+      } else {
+        const insertCoverArtRecord = db
+          .insertInto("source_records")
+          .values({
+            id: uuidv7(),
+            catalog_entity_id: catalogId,
+            source: "cover_art_archive",
+            source_id: coverArtReleaseId,
+            source_url: null,
+            raw_fields: JSON.stringify({ front: coverImageUrl }),
+            deletion_status: "active",
+            cached_at: null,
+            created_at: nowSeconds(),
+            updated_at: nowSeconds(),
+          })
+          .compile();
+
+        try {
+          await d1.batch([
+            d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters),
+            d1.prepare(insertCoverArtRecord.sql).bind(...insertCoverArtRecord.parameters),
+          ]);
+        } catch (err) {
+          const isKnownConflict = err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message);
+          if (isKnownConflict) {
+            // 上の存在チェックと本INSERTの間に、別リクエストが同じsource_idを
+            // 先に登録した(レース条件)。このcatalog_entity自身のジャケット表示は
+            // 諦めずUPDATEだけでも反映する
+            try {
+              await d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters).run();
+            } catch (updateErr) {
+              console.error("[findOrCreateMusicCatalogEntity] ジャケット画像の登録に失敗しました", updateErr);
+            }
+          } else {
+            console.error("[findOrCreateMusicCatalogEntity] ジャケット画像の登録に失敗しました", err);
+          }
         }
       }
     }

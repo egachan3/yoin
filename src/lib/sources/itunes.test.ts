@@ -91,6 +91,26 @@ describe("verifyById", () => {
     expect(result?.sourceId).toBe("1234567890");
   });
 
+  it("trackのIDをentityType:albumで照会した場合はnullを返す(type confusion対策の回帰テスト)", async () => {
+    // trackオブジェクトは自身が属するアルバムのcollectionId/collectionNameも
+    // 保持するため、wrapperTypeを確認しないと「曲のIDをアルバムとして申告した
+    // 不正なリクエスト」でもそのトラックが属するアルバム情報にすり替わって
+    // 検証を通過してしまう(レビュー指摘)
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([SAMPLE_TRACK]))));
+
+    const result = await verifyById("1234567890", "album");
+
+    expect(result).toBeNull();
+  });
+
+  it("collectionのIDをentityType:songで照会した場合はnullを返す", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([SAMPLE_COLLECTION]))));
+
+    const result = await verifyById("9876543210", "song");
+
+    expect(result).toBeNull();
+  });
+
   it("見つからない場合はnullを返す", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([]))));
 

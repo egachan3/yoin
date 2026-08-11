@@ -41,7 +41,12 @@ export interface ItunesCandidate {
 
 function toCandidate(track: z.infer<typeof TrackSchema>, entityType: ItunesEntityType): ItunesCandidate | null {
   if (entityType === "song") {
-    if (track.trackId === undefined || !track.trackName) return null;
+    // wrapperTypeが"track"であることも確認する。trackオブジェクトは自身が属する
+    // アルバムのcollectionId/collectionNameも同時に含むため、この確認がないと
+    // 「trackIdをentityType: album扱いでlookupする」というクライアントの不正な
+    // 組み合わせでも、trackオブジェクトのcollection*フィールドがそのまま
+    // アルバム候補として通ってしまう(verifyByIdでのなりすまし経路になる)
+    if (track.wrapperType !== "track" || track.trackId === undefined || !track.trackName) return null;
     return {
       source: "itunes",
       entityType: "song",
@@ -51,7 +56,7 @@ function toCandidate(track: z.infer<typeof TrackSchema>, entityType: ItunesEntit
       lengthMs: track.trackTimeMillis ?? null,
     };
   }
-  if (track.collectionId === undefined || !track.collectionName) return null;
+  if (track.wrapperType !== "collection" || track.collectionId === undefined || !track.collectionName) return null;
   return {
     source: "itunes",
     entityType: "album",

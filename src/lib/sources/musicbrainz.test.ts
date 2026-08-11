@@ -77,7 +77,9 @@ describe("searchRecordings", () => {
 
     const result = await searchRecordings("test", 10, 0);
 
-    expect(result.nextOffset).toBe(10);
+    // limit(10)ではなく実際に返ってきた件数(1)を基準にoffsetを計算する
+    // (要求件数より少ない件数しか返らない回があっても候補を飛ばさないため)
+    expect(result.nextOffset).toBe(1);
   });
 });
 
