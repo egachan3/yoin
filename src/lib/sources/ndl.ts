@@ -69,14 +69,25 @@ export function parseBibResource(recordDataXml: string): NdlBookCandidate | null
   }
 
   const title = extractText(bookResource["dcterms:title"]);
-  const creatorAgent = (bookResource["dcterms:creator"] as Record<string, unknown> | undefined)?.[
-    "foaf:Agent"
-  ] as Record<string, unknown> | undefined;
-  const creator = creatorAgent ? extractText(creatorAgent["foaf:name"]) : null;
-  const publisherAgent = (bookResource["dcterms:publisher"] as Record<string, unknown> | undefined)?.[
-    "foaf:Agent"
-  ] as Record<string, unknown> | undefined;
-  const publisher = publisherAgent ? extractText(publisherAgent["foaf:name"]) : null;
+
+  // dcterms:creator/publisherは共著・共同出版の場合に複数出現し、
+  // fast-xml-parserは配列として返す(単一オブジェクト前提だと値を
+  // 取りこぼす。実データ「嫌われる勇気」(共著)でcreatorがnullになる
+  // バグとしてE2E確認時に発覚)。toArray()で単一/複数を吸収し、
+  // 複数名は読点区切りで連結する
+  function joinAgentNames(node: unknown): string | null {
+    const agents = toArray(node as Record<string, unknown> | Record<string, unknown>[]);
+    const names = agents
+      .map((agent) => {
+        const foafAgent = (agent as Record<string, unknown>)["foaf:Agent"] as Record<string, unknown> | undefined;
+        return foafAgent ? extractText(foafAgent["foaf:name"]) : null;
+      })
+      .filter((name): name is string => name !== null);
+    return names.length > 0 ? names.join(", ") : null;
+  }
+
+  const creator = joinAgentNames(bookResource["dcterms:creator"]);
+  const publisher = joinAgentNames(bookResource["dcterms:publisher"]);
   const extentRaw = extractText(bookResource["dcterms:extent"]);
 
   if (!ndlBibId || !title) return null;

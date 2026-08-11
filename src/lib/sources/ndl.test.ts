@@ -22,6 +22,29 @@ const NOROUEI_NO_MORI_XML = `
 </rdf:RDF>
 `;
 
+// 共著のサンプル(isbn=9784478025819「嫌われる勇気」)。dcterms:creatorが
+// 複数出現する場合、fast-xml-parserは配列として返す。単一オブジェクト前提で
+// 実装すると値を取りこぼす(実際にE2E確認で発覚したバグの回帰テスト)
+const CO_AUTHORED_XML = `
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcndl="http://ndl.go.jp/dcndl/terms/" xmlns:foaf="http://xmlns.com/foaf/0.1/">
+  <dcndl:BibResource rdf:about="https://ndlsearch.ndl.go.jp/books/R100000002-I000025056492#material">
+    <dcterms:identifier rdf:datatype="http://ndl.go.jp/dcndl/terms/NDLBibID">25056492</dcterms:identifier>
+    <dcterms:identifier rdf:datatype="http://ndl.go.jp/dcndl/terms/ISBN">978-4-478-02581-9</dcterms:identifier>
+    <dcterms:title>嫌われる勇気 : 自己啓発の源流「アドラー」の教え</dcterms:title>
+    <dcterms:creator><foaf:Agent>
+      <foaf:name>岸見, 一郎</foaf:name>
+    </foaf:Agent></dcterms:creator><dcterms:creator><foaf:Agent>
+      <foaf:name>古賀, 史健</foaf:name>
+    </foaf:Agent></dcterms:creator>
+    <dcterms:publisher><foaf:Agent>
+      <foaf:name>ダイヤモンド社</foaf:name>
+    </foaf:Agent></dcterms:publisher>
+    <dcterms:extent>294p ; 19cm</dcterms:extent>
+    <dcndl:materialType rdf:resource="http://ndl.go.jp/ndltype/Book" rdfs:label="図書"/>
+  </dcndl:BibResource>
+</rdf:RDF>
+`;
+
 // materialTypeがBook以外(音楽CD)のサンプル。書籍以外を検索結果から除外できるかの確認用
 const MUSIC_CD_XML = `
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcndl="http://ndl.go.jp/dcndl/terms/" xmlns:foaf="http://xmlns.com/foaf/0.1/">
@@ -45,6 +68,12 @@ describe("parseBibResource", () => {
       isbn: "4062748681", // ハイフンが除去されている
       extentRaw: "302p ; 15cm",
     });
+  });
+
+  it("共著の場合、複数のcreatorを連結して抽出する(回帰テスト)", () => {
+    const result = parseBibResource(CO_AUTHORED_XML);
+    expect(result?.creator).toBe("岸見, 一郎, 古賀, 史健");
+    expect(result?.publisher).toBe("ダイヤモンド社");
   });
 
   it("Book以外(音楽等)はnullを返す", () => {
