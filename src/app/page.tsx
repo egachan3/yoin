@@ -33,9 +33,14 @@ export default async function Home() {
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-6)" }}>
 				<h1 style={{ fontSize: 24, margin: 0 }}>@{session.user.handle}の棚</h1>
-				<Link href="/search/books" className="btn btn-primary">
-					本を追加
-				</Link>
+				<div style={{ display: "flex", gap: "var(--space-2)" }}>
+					<Link href="/search/books" className="btn btn-primary">
+						本を追加
+					</Link>
+					<Link href="/search/music" className="btn btn-primary">
+						曲・アルバムを追加
+					</Link>
+				</div>
 			</div>
 
 			{entries.length === 0 ? (
