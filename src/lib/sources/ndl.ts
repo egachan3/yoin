@@ -211,6 +211,13 @@ export async function findBookByIsbn(isbn: string): Promise<NdlBookCandidate | n
  * illegal query syntaxで拒否されることを実際のAPIで確認済み)ため、
  * ISBNまたはtitleヒントを経由した間接的な再照会になる。
  */
+// title-hint検索で辿る最大ページ数。「もっと探す」はさらに深くページングできるため
+// 1ページ(50件)だけでは、ISBNのない本(古い本・同人誌等)がその範囲外にあると
+// 正規の本まで誤ってnot_found扱いになる(レビュー指摘)。3ページ(最大150件)まで
+// 追いかけて早期リターンする
+const VERIFY_MAX_PAGES = 3;
+const VERIFY_PAGE_SIZE = 50;
+
 export async function verifyBookCandidate(
   ndlBibId: string,
   titleHint: string,
@@ -221,6 +228,18 @@ export async function verifyBookCandidate(
     return byIsbn && byIsbn.ndlBibId === ndlBibId ? byIsbn : null;
   }
 
-  const { candidates } = await sruSearch(`title="${titleHint.replace(/"/g, '\\"')}"`, 50, 1);
-  return candidates.find((c) => c.ndlBibId === ndlBibId) ?? null;
+  const escapedTitle = titleHint.replace(/"/g, '\\"');
+  let startRecord = 1;
+  for (let page = 0; page < VERIFY_MAX_PAGES; page++) {
+    const { candidates, nextStartRecord } = await sruSearch(`title="${escapedTitle}"`, VERIFY_PAGE_SIZE, startRecord);
+    const found = candidates.find((c) => c.ndlBibId === ndlBibId);
+    if (found) {
+      return found;
+    }
+    if (nextStartRecord === null) {
+      break;
+    }
+    startRecord = nextStartRecord;
+  }
+  return null;
 }

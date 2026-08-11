@@ -94,7 +94,7 @@ export async function findOrCreateBookCatalogEntity(
     // UNIQUE(source, source_id)違反 = 他ユーザーがほぼ同時に同じ本を初めて
     // 追加した(レース条件)。孤児のcatalog_entities行を残さないよう、
     // 勝者側が作成した既存行を再取得して返す
-    if (err instanceof Error && /UNIQUE/i.test(err.message)) {
+    if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingCatalogId(db, candidate.ndlBibId);
       if (raceWinnerId) {
         return raceWinnerId;
@@ -107,36 +107,59 @@ export async function findOrCreateBookCatalogEntity(
   // 諦める(セクション5.4の決定通り)。失敗しても上記の原子的な書き込みは
   // 既に成功済みなので、primary_image_refがnullのまま残るだけで許容する
   if (candidate.isbn) {
+    let coverImageUrl: string | null = null;
     try {
       const imageLinks = await fetchCoverByIsbn(candidate.isbn, googleBooksApiKey);
-      const coverImageUrl = imageLinks?.thumbnail ?? null;
-      if (coverImageUrl) {
-        await db
-          .updateTable("catalog_entities")
-          .set({ primary_image_ref: coverImageUrl, updated_at: nowSeconds() })
-          .where("id", "=", catalogId)
-          .execute();
-
-        await db
-          .insertInto("source_records")
-          .values({
-            id: uuidv7(),
-            catalog_entity_id: catalogId,
-            source: "google_books",
-            source_id: candidate.isbn,
-            source_url: null,
-            // imageLinksのみ(google-books.tsの型自体がtitle/description等を持てない設計)
-            raw_fields: JSON.stringify({ thumbnail: coverImageUrl }),
-            deletion_status: "active",
-            cached_at: null,
-            created_at: nowSeconds(),
-            updated_at: nowSeconds(),
-          })
-          .execute();
-      }
+      coverImageUrl = imageLinks?.thumbnail ?? null;
     } catch {
-      // 書影取得の失敗(タイムアウト・429等)は書誌情報の登録自体を
-      // 失敗させない。primary_image_ref=nullのまま返す
+      // ネットワークエラー・タイムアウト等。書影取得自体を諦める
+      coverImageUrl = null;
+    }
+
+    if (coverImageUrl) {
+      // primary_image_refのUPDATEとsource_records(google_books)のINSERTも
+      // batch()で原子的に実行する。同じISBNの書影が別のcatalog_entity経由で
+      // 既に登録済み(別版・重複カタログ化等)だとINSERT側がUNIQUE違反になるが、
+      // batch()なら一緒にUPDATEもロールバックされるため、「primary_image_refは
+      // 設定されているのに対応するsource_recordsがない」という宙に浮いた状態が
+      // 起こり得ない(レビュー指摘)
+      const updateCatalog = db
+        .updateTable("catalog_entities")
+        .set({ primary_image_ref: coverImageUrl, updated_at: nowSeconds() })
+        .where("id", "=", catalogId)
+        .compile();
+
+      const insertGoogleBooksRecord = db
+        .insertInto("source_records")
+        .values({
+          id: uuidv7(),
+          catalog_entity_id: catalogId,
+          source: "google_books",
+          source_id: candidate.isbn,
+          source_url: null,
+          // imageLinksのみ(google-books.tsの型自体がtitle/description等を持てない設計)
+          raw_fields: JSON.stringify({ thumbnail: coverImageUrl }),
+          deletion_status: "active",
+          cached_at: null,
+          created_at: nowSeconds(),
+          updated_at: nowSeconds(),
+        })
+        .compile();
+
+      try {
+        await d1.batch([
+          d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters),
+          d1.prepare(insertGoogleBooksRecord.sql).bind(...insertGoogleBooksRecord.parameters),
+        ]);
+      } catch (err) {
+        // UNIQUE(source, source_id)違反(=既に別経由で登録済み)は許容して
+        // 書影なしのまま続行する。それ以外の想定外エラーも、書誌情報の登録
+        // 自体は既に成功済みなので同様に握りつぶす(書影は無くてもUI上は
+        // プレースホルダで表示される)
+        if (!(err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message))) {
+          // 通信系以外の想定外エラー。書誌情報の登録は成功させたいのでここでは再送出しない
+        }
+      }
     }
   }
 
