@@ -1,7 +1,10 @@
 // NDLのdcterms:extent文字列からページ数を抽出する。
 // 参照: shelf-type-app-spec.md セクション5「書籍のdcterms:extentパース方針」
 
-const NON_PAGE_UNIT_PATTERN = /枚|分|スコア|パート譜/;
+// 「冊」を含む場合(例: "3冊 505p, 480p, 512p"のような複数巻もの)、
+// pに隣接する数値が単一巻のページ数として意味を持たないためNULLへ倒す
+// (レビュー指摘: 除外せずにいると誤って1巻目のページ数だけを採用してしまう)
+const NON_PAGE_UNIT_PATTERN = /枚|分|スコア|パート譜|冊/;
 const PAGE_COUNT_PATTERN = /(\d+)(?:,\d+)*\s*p/i;
 
 /**

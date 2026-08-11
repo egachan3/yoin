@@ -33,7 +33,8 @@ function extractText(node: unknown): string | null {
   return null;
 }
 
-function parseBibResource(recordDataXml: string): NdlBookCandidate | null {
+// テストのためexport(実際のAPIレスポンスから抽出した固定サンプルXMLで検証する)
+export function parseBibResource(recordDataXml: string): NdlBookCandidate | null {
   const doc = parser.parse(recordDataXml) as Record<string, unknown>;
   const rdf = doc["rdf:RDF"] as Record<string, unknown> | undefined;
   if (!rdf) return null;
@@ -91,7 +92,8 @@ function parseBibResource(recordDataXml: string): NdlBookCandidate | null {
 // タイトル一致度でソートしてから返す。
 const FETCH_MULTIPLIER = 3;
 
-function titleMatchScore(candidateTitle: string, query: string): number {
+// テストのためexport
+export function titleMatchScore(candidateTitle: string, query: string): number {
   const normalizedTitle = candidateTitle.normalize("NFKC");
   const normalizedQuery = query.normalize("NFKC");
   if (normalizedTitle === normalizedQuery) return 0;
@@ -116,7 +118,8 @@ async function sruSearch(cql: string, fetchCount: number, startRecord: number): 
   url.searchParams.set("maximumRecords", String(fetchCount));
   url.searchParams.set("startRecord", String(startRecord));
 
-  const res = await fetch(url.toString());
+  // NDLが応答しない/遅い場合にリクエストが張り付き続けないよう上限を設ける
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
   if (!res.ok) {
     throw new Error(`NDL search failed: ${res.status}`);
   }

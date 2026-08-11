@@ -48,7 +48,7 @@ export async function fetchCoverByIsbn(isbn: string, apiKey?: string): Promise<G
     url.searchParams.set("key", apiKey);
   }
 
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(5000) });
   if (!res.ok) {
     return null;
   }

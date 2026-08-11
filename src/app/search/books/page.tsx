@@ -29,6 +29,7 @@ export default function BookSearchPage() {
 	const [searchField, setSearchField] = useState<"title" | "creator">("title");
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<string | null>(null);
+	const [addError, setAddError] = useState<{ ndlBibId: string; message: string } | null>(null);
 
 	async function runSearch(startRecord: number, append: boolean, field?: "title" | "creator") {
 		if (!query.trim()) return;
@@ -59,6 +60,7 @@ export default function BookSearchPage() {
 
 	async function handleAdd(candidate: BookCandidate) {
 		setAddingId(candidate.ndlBibId);
+		setAddError(null);
 		const res = await fetch("/api/shelf/books", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -67,7 +69,13 @@ export default function BookSearchPage() {
 		setAddingId(null);
 		if (res.ok) {
 			router.push("/");
+			return;
 		}
+		const body = (await res.json().catch(() => null)) as { message?: string } | null;
+		setAddError({
+			ndlBibId: candidate.ndlBibId,
+			message: body?.message ?? "追加に失敗しました。もう一度お試しください。",
+		});
 	}
 
 	return (
@@ -104,6 +112,9 @@ export default function BookSearchPage() {
 						>
 							{addingId === c.ndlBibId ? "追加中…" : "棚に追加"}
 						</button>
+						{addError?.ndlBibId === c.ndlBibId && (
+							<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+						)}
 					</div>
 				))}
 			</div>

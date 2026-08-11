@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
+import { listShelfEntries } from "@/db/shelf";
 
 const STATUS_LABEL: Record<string, string> = {
 	planned: "積読",
@@ -26,20 +27,7 @@ export default async function Home() {
 	}
 
 	const db = createDb(env.DB);
-	const entries = await db
-		.selectFrom("shelf_entries")
-		.innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
-		.select([
-			"shelf_entries.id",
-			"shelf_entries.status",
-			"shelf_entries.rating",
-			"catalog_entities.title",
-			"catalog_entities.primary_image_ref",
-		])
-		.where("shelf_entries.user_id", "=", session.user.id)
-		.orderBy("shelf_entries.added_at", "desc")
-		.limit(100)
-		.execute();
+	const entries = await listShelfEntries(db, session.user.id);
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
@@ -56,15 +44,21 @@ export default async function Home() {
 				<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
 					{entries.map((entry) => (
 						<div key={entry.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
-							<div
-								style={{
-									aspectRatio: "2 / 3",
-									background: entry.primary_image_ref ? "none" : "var(--color-accent-100)",
-									backgroundImage: entry.primary_image_ref ? `url(${entry.primary_image_ref})` : undefined,
-									backgroundSize: "cover",
-									backgroundPosition: "center",
-								}}
-							/>
+							{entry.primary_image_ref ? (
+								// eslint-disable-next-line @next/next/no-img-element -- Google Books等の外部ドメイン画像をそのまま表示する簡易版のため(R2プロキシは別途実装予定)
+								<img
+									src={entry.primary_image_ref}
+									alt={entry.title}
+									loading="lazy"
+									style={{ display: "block", width: "100%", aspectRatio: "2 / 3", objectFit: "cover" }}
+								/>
+							) : (
+								<div
+									role="img"
+									aria-label={entry.title}
+									style={{ aspectRatio: "2 / 3", background: "var(--color-accent-100)" }}
+								/>
+							)}
 							<div style={{ padding: "var(--space-2) var(--space-3)" }}>
 								<p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{entry.title}</p>
 								<p className="card-meta" style={{ marginTop: 4 }}>
