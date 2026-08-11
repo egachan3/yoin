@@ -9,7 +9,7 @@ import { magicLink } from "better-auth/plugins";
 // D1にはインタラクティブなトランザクションがなく、database.transactionのデフォルトは
 // false(逐次実行)なので、サインアップ時のuser行+account行の書き込みも
 // beginTransaction()を試みずに安全に処理される(node_modules内の実装で確認済み)。
-export function createAuth(env: { DB: D1Database; RESEND_API_KEY?: string; EMAIL_FROM?: string; GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string; BETTER_AUTH_SECRET?: string; BETTER_AUTH_URL?: string }) {
+export function createAuth(env: { DB: D1Database; RESEND_API_KEY?: string; EMAIL_FROM?: string; GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string; BETTER_AUTH_SECRET?: string; BETTER_AUTH_URL?: string; NEXTJS_ENV?: string }) {
   return betterAuth({
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
@@ -60,6 +60,14 @@ export function createAuth(env: { DB: D1Database; RESEND_API_KEY?: string; EMAIL
       magicLink({
         sendMagicLink: async ({ email, url }) => {
           if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+            // 開発環境限定のフォールバック: メール送信サービスが未設定でも
+            // ログインフローを最後まで通せるよう、リンクをサーバーログに
+            // 出力する(E2E動作確認・ローカル開発用。本番はRESEND_API_KEY/
+            // EMAIL_FROMが必須のnodejs_compat環境なのでこの分岐には来ない)
+            if (env.NEXTJS_ENV === "development") {
+              console.log(`[dev] マジックリンク(${email}宛): ${url}`);
+              return;
+            }
             throw new Error(
               "RESEND_API_KEY / EMAIL_FROM が未設定です。Resendでアカウントとドメインを用意し、.dev.vars / wrangler secret に設定してください。",
             );

@@ -103,7 +103,7 @@ figcaption {
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  cursor: pointer; text-decoration: none;
+  cursor: pointer; text-decoration: none; white-space: nowrap;
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
   font-size: 14px; line-height: 1.2; color: var(--color-text);
   background: transparent; border: 1px solid transparent;

@@ -1,0 +1,27 @@
+import type { Kysely } from "kysely";
+import type { Database } from "./schema";
+
+/**
+ * ジャンルを問わず本人の棚エントリを一覧取得する(グリッド表示用)。
+ * SSR(src/app/page.tsx)とAPI(src/app/api/shelf/route.ts)の両方から
+ * 同じロジックを使う(重複したクエリを別々に修正して食い違う事故を防ぐ)。
+ */
+export async function listShelfEntries(db: Kysely<Database>, userId: string) {
+  return db
+    .selectFrom("shelf_entries")
+    .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
+    .select([
+      "shelf_entries.id",
+      "shelf_entries.status",
+      "shelf_entries.comment",
+      "shelf_entries.rating",
+      "shelf_entries.added_at",
+      "catalog_entities.genre",
+      "catalog_entities.title",
+      "catalog_entities.primary_image_ref",
+    ])
+    .where("shelf_entries.user_id", "=", userId)
+    .orderBy("shelf_entries.added_at", "desc")
+    .limit(100)
+    .execute();
+}

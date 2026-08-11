@@ -13,3 +13,7 @@ GOOGLE_CLIENT_SECRET=
 # マジックリンク送信 (https://resend.com でアカウント・送信ドメインを用意する)
 RESEND_API_KEY=
 EMAIL_FROM=
+
+# 書影補完 (https://console.cloud.google.com/apis/library/books.googleapis.com)
+# 未設定でも動くが匿名クエリは共有クォータのため429になりやすい
+GOOGLE_BOOKS_API_KEY=
