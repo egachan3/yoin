@@ -48,6 +48,15 @@
 			"binding": "RATE_LIMIT",
 			"id": "b8410b718e85450bbb58104850673790"
 		}
+	],
+	"r2_buckets": [
+		{
+			// 遅延補充(lazy fill)方式の画像キャッシュ(spec セクション5「画像ストレージ」)。
+			// 本番初回デプロイ前に `wrangler r2 bucket create yoin-image-cache` が必要。
+			// ローカル開発はwranglerのR2エミュレーションで動くため、それまでは不要
+			"binding": "IMAGE_CACHE",
+			"bucket_name": "yoin-image-cache"
+		}
 	]
 	/**
 	 * Smart Placement
