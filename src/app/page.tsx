@@ -60,9 +60,9 @@ export default async function Home() {
 					{entries.map((entry) => (
 						<div key={entry.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
 							{entry.primary_image_ref ? (
-								// eslint-disable-next-line @next/next/no-img-element -- Google Books等の外部ドメイン画像をそのまま表示する簡易版のため(R2プロキシは別途実装予定)
+								// eslint-disable-next-line @next/next/no-img-element -- R2プロキシ配下の自ドメイン画像のため次のimage最適化(next/image)の適用は別途検討
 								<img
-									src={entry.primary_image_ref}
+									src={`/img/${entry.catalog_id}/grid`}
 									alt={entry.title}
 									loading="lazy"
 									style={{ display: "block", width: "100%", aspectRatio: "2 / 3", objectFit: "cover" }}

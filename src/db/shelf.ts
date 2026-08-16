@@ -16,6 +16,7 @@ export async function listShelfEntries(db: Kysely<Database>, userId: string) {
       "shelf_entries.comment",
       "shelf_entries.rating",
       "shelf_entries.added_at",
+      "catalog_entities.id as catalog_id",
       "catalog_entities.genre",
       "catalog_entities.title",
       "catalog_entities.primary_image_ref",
