@@ -11,6 +11,13 @@ import { fetchCoverArtByRelease, fetchCoverArtByReleaseGroup } from "@/lib/sourc
 import type { ItunesCandidate } from "@/lib/sources/itunes";
 import type { TmdbCandidate } from "@/lib/sources/tmdb";
 import { buildImageUrl } from "@/lib/sources/tmdb";
+import type { MalCandidate } from "@/lib/sources/mal";
+import {
+  buildSourceId as buildMalSourceId,
+  buildSourceUrl as buildMalSourceUrl,
+  displayTitle as malDisplayTitle,
+  buildRawFields as buildMalRawFields,
+} from "@/lib/sources/mal";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -433,6 +440,98 @@ export async function findOrCreateMovieCatalogEntity(
     // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽と同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingMovieCatalogId(db, sourceId);
+      if (raceWinnerId) {
+        return raceWinnerId;
+      }
+    }
+    throw err;
+  }
+
+  return catalogId;
+}
+
+async function findExistingAnimeMangaCatalogId(db: Kysely<Database>, sourceId: string): Promise<string | null> {
+  const existing = await db
+    .selectFrom("source_records")
+    .select("catalog_entity_id")
+    .where("source", "=", "mal")
+    .where("source_id", "=", sourceId)
+    .executeTakeFirst();
+  return existing?.catalog_entity_id ?? null;
+}
+
+/**
+ * アニメ・マンガ候補をcatalog_entities/source_recordsに正規化して保存する。
+ * 構造は映画・ドラマ(TMDB)と同じ。画像もMAL自身がURLを返すため1回のbatch()で完結する。
+ *
+ * source_idは`${mediaType}:${malId}`形式(MALのアニメIDとマンガIDは別の採番空間の
+ * ため。詳細はmal.tsのbuildSourceId参照)。
+ *
+ * 【重要】raw_fieldsに書き込むのは「事実」フィールドのみ(spec 3.4)。
+ * synopsis/mean/rank/popularityはMALユーザーの生成物の集約であり、API Agreement
+ * Section 3(c)のサーバー側保存禁止に該当し得るため保存しない。MalCandidate型が
+ * そもそもそれらを持たない設計なので、ここで書き込むことは構造的にできない。
+ */
+export async function findOrCreateAnimeMangaCatalogEntity(
+  db: Kysely<Database>,
+  d1: D1Database,
+  candidate: MalCandidate,
+): Promise<string> {
+  const sourceId = buildMalSourceId(candidate);
+  const existingId = await findExistingAnimeMangaCatalogId(db, sourceId);
+  if (existingId) {
+    return existingId;
+  }
+
+  const catalogId = uuidv7();
+  const now = nowSeconds();
+
+  const insertCatalogEntity = db
+    .insertInto("catalog_entities")
+    .values({
+      id: catalogId,
+      genre: "anime_manga",
+      // 日本語タイトルがあれば優先する(spec 6章の日本市場向け差別化)
+      title: malDisplayTitle(candidate),
+      primary_image_ref: candidate.mainPicture,
+      owner_user_id: null,
+      merged_into_id: null,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  const insertSourceRecord = db
+    .insertInto("source_records")
+    .values({
+      id: uuidv7(),
+      catalog_entity_id: catalogId,
+      source: "mal",
+      source_id: sourceId,
+      // Section 3(e)の24時間削除義務・Section 18の監査権に備え、来歴URLを残す
+      source_url: buildMalSourceUrl(candidate),
+      // 保存するフィールドの選定はmal.ts側のホワイトリストに集約している
+      // (spec 5.4「強制手段はコードレビュー運用に頼らない」。テストで守る)
+      raw_fields: JSON.stringify(buildMalRawFields(candidate)),
+      deletion_status: "active",
+      // MALには6ヶ月キャッシュ上限のような明示的な期限はないが、Section 3(e)の
+      // 削除要請対応・Section 6の負荷配慮のため再取得基準として記録しておく
+      // (定期再取得ジョブ自体はTMDBと合わせて画像プロキシ実装時に一括対応)
+      cached_at: now,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  try {
+    await d1.batch([
+      d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
+      d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+    ]);
+  } catch (err) {
+    // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽/映画と同じ扱い)
+    if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
+      const raceWinnerId = await findExistingAnimeMangaCatalogId(db, sourceId);
       if (raceWinnerId) {
         return raceWinnerId;
       }

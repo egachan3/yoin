@@ -23,3 +23,8 @@ GOOGLE_BOOKS_API_KEY=
 # 必須。未設定だと映画・ドラマの検索/追加は502を返す(NDL/MusicBrainz/iTunesと
 # 異なり匿名利用不可)
 TMDB_API_KEY=
+
+# アニメ・マンガ検索 (https://myanimelist.net/apiconfig/create でアプリ登録し Client ID を取得する)
+# Client Secretは不要(client_authのみで必要なエンドポイントは全て叩ける)
+# 必須。未設定だとアニメ・マンガの検索/追加は502を返す
+MAL_CLIENT_ID=
