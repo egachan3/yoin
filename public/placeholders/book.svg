@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" role="img" aria-label="書籍">
+  <rect width="240" height="360" fill="#fff0eb"/>
+  <rect x="72" y="118" width="96" height="136" rx="6" fill="#ffbba6"/>
+  <rect x="64" y="110" width="96" height="136" rx="8" fill="#c74d2f"/>
+  <rect x="64" y="110" width="14" height="136" rx="8" fill="#9e371d"/>
+  <path d="M104 110 L128 110 L128 150 L116 138 L104 150 Z" fill="#fff0eb"/>
+</svg>

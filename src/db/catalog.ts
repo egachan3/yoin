@@ -3,7 +3,7 @@
 
 import { uuidv7 } from "uuidv7";
 import type { Kysely } from "kysely";
-import type { Database, CatalogSource } from "./schema";
+import type { Database, CatalogSource, Genre } from "./schema";
 import type { NdlBookCandidate } from "@/lib/sources/ndl";
 import { fetchCoverByIsbn } from "@/lib/sources/google-books";
 import type { MusicCandidate } from "@/lib/sources/musicbrainz";
@@ -24,6 +24,7 @@ import {
   buildRawFields as buildIgdbRawFields,
   buildSourceUrl as buildIgdbSourceUrl,
 } from "@/lib/sources/igdb";
+import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -633,6 +634,51 @@ export async function findOrCreateGameCatalogEntity(
     }
     throw err;
   }
+
+  return catalogId;
+}
+
+export interface ManualCatalogEntityInput {
+  genre: Genre;
+  title: string;
+  ownerUserId: string;
+}
+
+/**
+ * 外部APIで検索してもヒットしない作品を、ユーザー自身の手で棚に記録するための
+ * catalog_entity作成関数(spec 5.4「検索結果0件時のフォールバックUI」)。
+ *
+ * 上記の findOrCreate*CatalogEntity 群とは性質が正反対のため、共通化せず別関数にしている:
+ * - findOrCreate*: 外部ソースIDを正規化キーに、同じ作品なら複数ユーザー・複数回の
+ *   追加を1つのcatalog_entityに名寄せする(source_recordsのUNIQUE制約が前提)
+ * - createManualCatalogEntity: 自由記述タイトルには正規化キーが存在しない
+ *   (「鬼滅の刃」を2人が手動入力しても別作品かもしれない)。したがって常に新規行を作り、
+ *   owner_user_idで所有者に紐付けて他ユーザーの名寄せ対象・検索結果から構造的に除外する
+ *
+ * source_recordsは一切作らない(手動入力には外部ソースが存在しないため)。
+ * 画像はユーザーアップロードではなく、ジャンル別の静的プレースホルダー(public/placeholders/)
+ * を割り当てる(spec: App Store UGCモデレーション義務を避けるための決定)。
+ */
+export async function createManualCatalogEntity(
+  db: Kysely<Database>,
+  input: ManualCatalogEntityInput,
+): Promise<string> {
+  const catalogId = uuidv7();
+  const now = nowSeconds();
+
+  await db
+    .insertInto("catalog_entities")
+    .values({
+      id: catalogId,
+      genre: input.genre,
+      title: input.title,
+      primary_image_ref: MANUAL_PLACEHOLDER_IMAGE[input.genre],
+      owner_user_id: input.ownerUserId,
+      merged_into_id: null,
+      created_at: now,
+      updated_at: now,
+    })
+    .execute();
 
   return catalogId;
 }
