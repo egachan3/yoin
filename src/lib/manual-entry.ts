@@ -1,0 +1,64 @@
+// 手動入力フォールバック機能の共通定義(ジャンル・状態のラベル、プレースホルダー画像の割り当て)。
+// クライアント(フォーム)・サーバー(APIルート)の両方から参照するため、
+// Cloudflare/Node固有のimportを持たない純粋なモジュールにする。
+// 参照: shelf-type-app-spec.md セクション5.4「検索結果0件時のフォールバックUI」
+
+import type { Genre, ShelfEntryStatus } from "@/db/schema";
+
+export const GENRE_LABELS: Record<Genre, string> = {
+  book: "書籍",
+  music: "音楽",
+  movie_tv: "映画・ドラマ",
+  anime_manga: "アニメ・マンガ",
+  game: "ゲーム",
+};
+
+export const STATUS_LABELS: Record<ShelfEntryStatus, string> = {
+  planned: "積読",
+  in_progress: "進行中",
+  completed: "読了",
+  on_hold: "中断中",
+  dropped: "断念",
+};
+
+// 「完了」を意味する状態のときのみ、ユーザーが指定した日付をcompleted_atにも入れる
+// (他ジャンルの「status: completedならcompleted_atを設定する」という既存パターンを踏襲)
+export function isCompletedStatus(status: ShelfEntryStatus): boolean {
+  return status === "completed";
+}
+
+// 5分類×1種の静的プレースホルダー画像(public/placeholders/配下の固定アセット)。
+// ユーザーアップロード・画像検索・外部URLはいずれも使わない(spec: モデレーション義務を避けるため)
+export const MANUAL_PLACEHOLDER_IMAGE: Record<Genre, string> = {
+  book: "/placeholders/book.svg",
+  music: "/placeholders/music.svg",
+  movie_tv: "/placeholders/movie_tv.svg",
+  anime_manga: "/placeholders/anime_manga.svg",
+  game: "/placeholders/game.svg",
+};
+
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * <input type="date">が返す"YYYY-MM-DD"形式の文字列をUNIX秒に変換する。
+ * UTC深夜0時を基準に決定的に計算する(サーバー(Cloudflare Workers、TZ=UTC想定)と
+ * ブラウザ(ユーザーのローカルタイムゾーン)の両方から呼ばれ得るため、実行環境の
+ * ローカルタイムゾーンに依存すると同じ入力でも結果がずれる。年月日の数値だけを
+ * 見て判定することで環境非依存にする)。
+ * 不正な形式・不正な日付(例: 2026-02-30)はnullを返す。
+ */
+export function parseManualDate(value: string): number | null {
+  const match = DATE_RE.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utcMs = Date.UTC(year, month - 1, day);
+  const date = new Date(utcMs);
+  // "2026-02-30"のような桁上がりする不正な日付を弾く
+  // (Date.UTCはこれを2026-03-02のように繰り上げ解釈するため、往復比較で検出する)
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+  return Math.floor(utcMs / 1000);
+}

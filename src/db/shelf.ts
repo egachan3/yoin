@@ -20,6 +20,11 @@ export async function listShelfEntries(db: Kysely<Database>, userId: string) {
       "catalog_entities.genre",
       "catalog_entities.title",
       "catalog_entities.primary_image_ref",
+      // 手動入力(非null)かどうかで画像の描画経路を分岐するために必要。
+      // /img/{workId}/gridプロキシはowner_user_idが非nullの行を対象から除外している
+      // (image-proxy.tsのresolveImageSource参照)ため、手動入力はプロキシを経由せず
+      // primary_image_ref(静的プレースホルダーのパス)を直接<img>に渡す必要がある
+      "catalog_entities.owner_user_id",
     ])
     .where("shelf_entries.user_id", "=", userId)
     .orderBy("shelf_entries.added_at", "desc")

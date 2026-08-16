@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" role="img" aria-label="アニメ・マンガ">
+  <rect width="240" height="360" fill="#f6f2ff"/>
+  <path d="M60 130 h120 a14 14 0 0 1 14 14 v70 a14 14 0 0 1 -14 14 h-70 l-26 26 v-26 h-24 a14 14 0 0 1 -14 -14 v-70 a14 14 0 0 1 14 -14 z" fill="#674d91"/>
+  <path d="M158 88 L166 104 L182 110 L166 116 L158 132 L150 116 L134 110 L150 104 Z" fill="#8667b8"/>
+</svg>
