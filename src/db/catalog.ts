@@ -18,6 +18,12 @@ import {
   displayTitle as malDisplayTitle,
   buildRawFields as buildMalRawFields,
 } from "@/lib/sources/mal";
+import type { IgdbCandidate } from "@/lib/sources/igdb";
+import {
+  buildImageUrl as buildIgdbImageUrl,
+  buildRawFields as buildIgdbRawFields,
+  buildSourceUrl as buildIgdbSourceUrl,
+} from "@/lib/sources/igdb";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -532,6 +538,95 @@ export async function findOrCreateAnimeMangaCatalogEntity(
     // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽/映画と同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingAnimeMangaCatalogId(db, sourceId);
+      if (raceWinnerId) {
+        return raceWinnerId;
+      }
+    }
+    throw err;
+  }
+
+  return catalogId;
+}
+
+async function findExistingGameCatalogId(db: Kysely<Database>, sourceId: string): Promise<string | null> {
+  const existing = await db
+    .selectFrom("source_records")
+    .select("catalog_entity_id")
+    .where("source", "=", "igdb")
+    .where("source_id", "=", sourceId)
+    .executeTakeFirst();
+  return existing?.catalog_entity_id ?? null;
+}
+
+/**
+ * ゲーム候補をcatalog_entities/source_recordsに正規化して保存する。
+ * 構造は映画・ドラマ(TMDB)/アニメ・マンガ(MAL)と同じ。画像もIGDB自身が
+ * image_idを返すため(音楽のCover Art Archiveのような別ソース呼び出しは不要)、
+ * 1回のbatch()で完結する。
+ *
+ * IGDBのゲームIDは単一の採番空間(映画・ドラマのmovie/tv、アニメ・マンガの
+ * anime/mangaのような複数種別の混在がない)ため、source_idはigdbIdをそのまま
+ * 文字列化するだけでよい(プレフィックス不要)。
+ */
+export async function findOrCreateGameCatalogEntity(
+  db: Kysely<Database>,
+  d1: D1Database,
+  candidate: IgdbCandidate,
+): Promise<string> {
+  const sourceId = String(candidate.igdbId);
+  const existingId = await findExistingGameCatalogId(db, sourceId);
+  if (existingId) {
+    return existingId;
+  }
+
+  const catalogId = uuidv7();
+  const now = nowSeconds();
+  const imageUrl = candidate.coverImageId ? buildIgdbImageUrl(candidate.coverImageId) : null;
+
+  const insertCatalogEntity = db
+    .insertInto("catalog_entities")
+    .values({
+      id: catalogId,
+      genre: "game",
+      title: candidate.title,
+      primary_image_ref: imageUrl,
+      owner_user_id: null,
+      merged_into_id: null,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  const insertSourceRecord = db
+    .insertInto("source_records")
+    .values({
+      id: uuidv7(),
+      catalog_entity_id: catalogId,
+      source: "igdb",
+      source_id: sourceId,
+      source_url: buildIgdbSourceUrl(candidate),
+      // 保存するフィールドの選定はigdb.ts側のホワイトリストに集約している
+      // (spec 5.4「強制手段はコードレビュー運用に頼らない」。テストで守る)
+      raw_fields: JSON.stringify(buildIgdbRawFields(candidate)),
+      deletion_status: "active",
+      // IGDBの画像は削除・差し替えから30日で消える(公式ドキュメント記載、
+      // TMDBの6ヶ月より短いサイクル)。再取得基準として記録しておく
+      // (定期再取得ジョブ自体は他ジャンルと合わせて画像プロキシ実装時に一括対応)
+      cached_at: now,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  try {
+    await d1.batch([
+      d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
+      d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+    ]);
+  } catch (err) {
+    // UNIQUE(source, source_id)違反 = レース条件(他ジャンルと同じ扱い)
+    if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
+      const raceWinnerId = await findExistingGameCatalogId(db, sourceId);
       if (raceWinnerId) {
         return raceWinnerId;
       }

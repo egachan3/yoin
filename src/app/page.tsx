@@ -47,6 +47,9 @@ export default async function Home() {
 					<Link href="/search/anime-manga" className="btn btn-primary">
 						アニメ・マンガを追加
 					</Link>
+					<Link href="/search/games" className="btn btn-primary">
+						ゲームを追加
+					</Link>
 				</div>
 			</div>
 
