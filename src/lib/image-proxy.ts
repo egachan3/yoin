@@ -60,6 +60,13 @@ export async function resolveImageSource(db: Kysely<Database>, workId: string): 
   const entity = await db
     .selectFrom("catalog_entities")
     .select("primary_image_ref")
+    // 【将来への防御】このルートは認証を要求しないため、誰でもwork_idを
+    // 総当たりして画像を取得できる。現状owner_user_idは常にnullで全カタログが
+    // 非機微な共有データだが、将来の手動入力フォールバック機能で
+    // owner_user_idが非nullの行(ユーザー個別の私的な画像を持ちうる)が
+    // 作られるようになった際に、実装漏れで誰でも閲覧可能になる事故を
+    // 構造的に防ぐため、ここで明示的に対象から除外しておく(レビュー指摘)
+    .where("owner_user_id", "is", null)
     .where("id", "=", workId)
     .executeTakeFirst();
   if (!entity?.primary_image_ref) return null;
@@ -125,6 +132,7 @@ export async function serveWorkImage(
       headers: {
         "Content-Type": existing.httpMetadata?.contentType ?? "image/jpeg",
         "Cache-Control": existing.httpMetadata?.cacheControl ?? buildCacheControl(false),
+        "X-Content-Type-Options": "nosniff",
       },
     });
   }
@@ -132,7 +140,7 @@ export async function serveWorkImage(
   if (!source) {
     // work_id自体が存在しない、またはprimary_image_refがnull。
     // 恒久的な状態である可能性が高いのでnegative cacheに乗せる
-    deps.waitUntil(markNegativelyCached(deps.kv, workId));
+    deps.waitUntil(markNegativelyCached(deps.kv, workId).catch(() => {}));
     return new Response(null, NOT_FOUND_RESPONSE_INIT);
   }
 
@@ -145,13 +153,30 @@ export async function serveWorkImage(
     return new Response(null, NOT_FOUND_RESPONSE_INIT);
   }
 
+  if (originRes.status === 404) {
+    // 明示的な404 = 書影未収録等、恒久的な可能性が高いのでnegative cacheに乗せる。
+    // 【重要】ここは404のみに限定する。`!originRes.ok`で判定すると5xx(配信元の
+    // 一時障害)・429(配信元のレート制限)・401/403等も同じ分岐に入ってしまい、
+    // 実際には画像が存在するのに24時間「無い」扱いになる(レビュー指摘で発見)
+    deps.waitUntil(markNegativelyCached(deps.kv, workId).catch(() => {}));
+    return new Response(null, NOT_FOUND_RESPONSE_INIT);
+  }
+  if (!originRes.ok) {
+    // 404以外の非okレスポンス(5xx・429・401/403等)。配信元の一時的な障害や
+    // 認証・レート制限の問題である可能性が高く、恒久的に画像が無いとは限らない。
+    // negative cacheには乗せず次回リトライさせる(タイムアウト時と同じ扱い)
+    return new Response(null, NOT_FOUND_RESPONSE_INIT);
+  }
+
   const contentType = originRes.headers.get("content-type") ?? "";
-  if (!originRes.ok || !contentType.startsWith("image/")) {
-    // 配信元が明示的にエラーを返した、または画像以外を返した(想定外の
-    // リダイレクト先等)。前者は書影未収録等で恒久的な可能性が高いため
-    // negative cacheに乗せる。後者も同じキーに対して繰り返し起きる
-    // 可能性が高いため同様に扱う
-    deps.waitUntil(markNegativelyCached(deps.kv, workId));
+  // svg+xmlはスクリプト埋め込みが可能なため許可しない(XSSベクタになり得る)。
+  // 具体的なホワイトリストにすることで、想定外・悪意あるcontent-typeの
+  // レスポンスがそのまま自ドメインで配信されるのを防ぐ
+  const ALLOWED_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+  if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+    // 画像以外・許可していない画像形式を返した(想定外のリダイレクト先等)。
+    // 同じキーに対して繰り返し起きる可能性が高いためnegative cacheに乗せる
+    deps.waitUntil(markNegativelyCached(deps.kv, workId).catch(() => {}));
     return new Response(null, NOT_FOUND_RESPONSE_INIT);
   }
 
@@ -167,6 +192,6 @@ export async function serveWorkImage(
   );
 
   return new Response(imageBytes, {
-    headers: { "Content-Type": contentType, "Cache-Control": cacheControl },
+    headers: { "Content-Type": contentType, "Cache-Control": cacheControl, "X-Content-Type-Options": "nosniff" },
   });
 }

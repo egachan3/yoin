@@ -169,6 +169,34 @@ describe("serveWorkImage", () => {
     expect(store.has("img-404:work-4")).toBe(true);
   });
 
+  it("配信元が5xx(一時障害)を返してもnegative cacheに乗せない(実際には画像が存在する可能性が高いため)", async () => {
+    // !originRes.okで判定すると5xx/429/401/403も404と同じ扱いになり、
+    // 配信元の一時障害だけで24時間「無い」扱いになってしまう(レビューで発見した不具合)
+    const { r2 } = createR2Stub();
+    const { kv, store } = createKvStub();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(null, { status: 503 })));
+    const { deps, flush } = createDeps(r2, kv);
+
+    const res = await serveWorkImage(deps, "work-503", "grid", source);
+    await flush();
+
+    expect(res.status).toBe(404);
+    expect(store.has("img-404:work-503")).toBe(false);
+  });
+
+  it("配信元が429(レート制限)を返してもnegative cacheに乗せない", async () => {
+    const { r2 } = createR2Stub();
+    const { kv, store } = createKvStub();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(null, { status: 429 })));
+    const { deps, flush } = createDeps(r2, kv);
+
+    const res = await serveWorkImage(deps, "work-429", "grid", source);
+    await flush();
+
+    expect(res.status).toBe(404);
+    expect(store.has("img-404:work-429")).toBe(false);
+  });
+
   it("配信元がタイムアウト・ネットワークエラーの場合はnegative cacheに乗せない(次回リトライさせる)", async () => {
     const { r2 } = createR2Stub();
     const { kv, store } = createKvStub();
@@ -193,6 +221,39 @@ describe("serveWorkImage", () => {
 
     expect(res.status).toBe(404);
     expect(store.has("img-404:work-6")).toBe(true);
+  });
+
+  it("image/svg+xmlはスクリプト埋め込みが可能なため拒否する(XSS対策)", async () => {
+    const { r2 } = createR2Stub();
+    const { kv, store } = createKvStub();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(imageResponse("<svg onload=\"alert(1)\"></svg>", "image/svg+xml")),
+    );
+    const { deps, flush } = createDeps(r2, kv);
+
+    const res = await serveWorkImage(deps, "work-svg", "grid", source);
+    await flush();
+
+    expect(res.status).toBe(404);
+    expect(store.has("img-404:work-svg")).toBe(true);
+  });
+
+  it("R2キャッシュ返却時・新規取得時のいずれもX-Content-Type-Options: nosniffを付与する", async () => {
+    const { r2, store: r2Store } = createR2Stub();
+    const { kv } = createKvStub();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(imageResponse("bytes", "image/jpeg")));
+    const { deps } = createDeps(r2, kv);
+
+    const fresh = await serveWorkImage(deps, "work-nosniff-1", "grid", source);
+    expect(fresh.headers.get("X-Content-Type-Options")).toBe("nosniff");
+
+    r2Store.set("work-nosniff-2/grid", {
+      body: new TextEncoder().encode("cached").buffer as ArrayBuffer,
+      httpMetadata: { contentType: "image/png" },
+    });
+    const cached = await serveWorkImage(deps, "work-nosniff-2", "grid", source);
+    expect(cached.headers.get("X-Content-Type-Options")).toBe("nosniff");
   });
 
   it("R2への書き込み失敗は握り潰し、ユーザーへのレスポンスには影響しない", async () => {
