@@ -10,6 +10,15 @@ describe("parseManualDate", () => {
     expect(parseManualDate("2024-02-29")).toBe(Date.UTC(2024, 1, 29) / 1000);
   });
 
+  it("西暦0〜99年を1900年代と誤解釈しない(Date.UTCの二桁年特別扱いのバグ回帰)", () => {
+    // Date.UTC(50, 0, 1)は仕様上西暦1950年になってしまうため、期待値の算出にも使えない。
+    // setUTCFullYearなら二桁年の特別扱いがないため、期待値の算出にも同じ手段を使う
+    const expected = new Date(0);
+    expected.setUTCFullYear(50, 0, 1);
+    expect(parseManualDate("0050-01-01")).toBe(expected.getTime() / 1000);
+    expect(parseManualDate("0050-01-01")).not.toBe(Date.UTC(1950, 0, 1) / 1000);
+  });
+
   it.each([
     ["2026-02-30", "存在しない日付(繰り上がり)"],
     ["2026-13-01", "存在しない月"],

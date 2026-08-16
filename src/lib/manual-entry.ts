@@ -53,12 +53,16 @@ export function parseManualDate(value: string): number | null {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const utcMs = Date.UTC(year, month - 1, day);
-  const date = new Date(utcMs);
+  // Date.UTC(year, ...)は仕様上0〜99年を1900+年と特別解釈してしまう
+  // (例: Date.UTC(50, 0, 1)は西暦1950年になる)ため使わない。
+  // setUTCFullYear()にはこの特別扱いがなく、年をそのまま設定できる
+  // (レビュー指摘で発見)
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
   // "2026-02-30"のような桁上がりする不正な日付を弾く
-  // (Date.UTCはこれを2026-03-02のように繰り上げ解釈するため、往復比較で検出する)
+  // (繰り上げ解釈されて2026-03-02になるため、往復比較で検出する)
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
     return null;
   }
-  return Math.floor(utcMs / 1000);
+  return Math.floor(date.getTime() / 1000);
 }
