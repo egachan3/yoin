@@ -5,6 +5,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { listShelfEntries } from "@/db/shelf";
+import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 const STATUS_LABEL: Record<string, string> = {
 	planned: "積読",
@@ -39,6 +40,9 @@ export default async function Home() {
 					</Link>
 					<Link href="/search/music" className="btn btn-primary">
 						曲・アルバムを追加
+					</Link>
+					<Link href="/search/movies" className="btn btn-primary">
+						映画・ドラマを追加
 					</Link>
 				</div>
 			</div>
@@ -75,6 +79,8 @@ export default async function Home() {
 					))}
 				</div>
 			)}
+
+			{entries.some((entry) => entry.genre === "movie_tv") && <TmdbAttribution />}
 		</main>
 	);
 }

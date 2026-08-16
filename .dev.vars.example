@@ -17,3 +17,9 @@ EMAIL_FROM=
 # 書影補完 (https://console.cloud.google.com/apis/library/books.googleapis.com)
 # 未設定でも動くが匿名クエリは共有クォータのため429になりやすい
 GOOGLE_BOOKS_API_KEY=
+
+# 映画・ドラマ検索 (https://www.themoviedb.org/settings/api でアカウント作成後、
+# 「API 読み取りアクセストークン」ではなく「APIキー(v3 auth)」を取得する)
+# 必須。未設定だと映画・ドラマの検索/追加は502を返す(NDL/MusicBrainz/iTunesと
+# 異なり匿名利用不可)
+TMDB_API_KEY=

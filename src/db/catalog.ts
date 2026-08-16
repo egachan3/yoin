@@ -9,6 +9,8 @@ import { fetchCoverByIsbn } from "@/lib/sources/google-books";
 import type { MusicCandidate } from "@/lib/sources/musicbrainz";
 import { fetchCoverArtByRelease, fetchCoverArtByReleaseGroup } from "@/lib/sources/musicbrainz";
 import type { ItunesCandidate } from "@/lib/sources/itunes";
+import type { TmdbCandidate } from "@/lib/sources/tmdb";
+import { buildImageUrl } from "@/lib/sources/tmdb";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -341,6 +343,101 @@ export async function findOrCreateMusicCatalogEntity(
         }
       }
     }
+  }
+
+  return catalogId;
+}
+
+async function findExistingMovieCatalogId(db: Kysely<Database>, sourceId: string): Promise<string | null> {
+  const existing = await db
+    .selectFrom("source_records")
+    .select("catalog_entity_id")
+    .where("source", "=", "tmdb")
+    .where("source_id", "=", sourceId)
+    .executeTakeFirst();
+  return existing?.catalog_entity_id ?? null;
+}
+
+/**
+ * 映画・ドラマ候補をcatalog_entities/source_recordsに正規化して保存する。
+ * 骨格は書籍/音楽と同じだが、画像もTMDB自身が返すため(音楽のCover Art
+ * Archiveのような別ソース呼び出しは不要)、1回のbatch()で完結する。
+ *
+ * source_idは`${mediaType}:${tmdbId}`形式にする。TMDBの映画IDとTV番組IDは
+ * 別の採番空間で同じ数値が別作品を指しうるため、mediaTypeを含めないと
+ * source_records.UNIQUE(source, source_id)で異なる作品が衝突する。
+ */
+export async function findOrCreateMovieCatalogEntity(
+  db: Kysely<Database>,
+  d1: D1Database,
+  candidate: TmdbCandidate,
+): Promise<string> {
+  const sourceId = `${candidate.mediaType}:${candidate.tmdbId}`;
+  const existingId = await findExistingMovieCatalogId(db, sourceId);
+  if (existingId) {
+    return existingId;
+  }
+
+  const catalogId = uuidv7();
+  const now = nowSeconds();
+  const imageUrl = candidate.posterPath ? buildImageUrl(candidate.posterPath) : null;
+
+  const insertCatalogEntity = db
+    .insertInto("catalog_entities")
+    .values({
+      id: catalogId,
+      genre: "movie_tv",
+      title: candidate.title,
+      primary_image_ref: imageUrl,
+      owner_user_id: null,
+      merged_into_id: null,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  const insertSourceRecord = db
+    .insertInto("source_records")
+    .values({
+      id: uuidv7(),
+      catalog_entity_id: catalogId,
+      source: "tmdb",
+      source_id: sourceId,
+      // TMDBは正規URLを機械的に組み立てられる。来歴追跡・削除要請時の突き合わせに
+      // 使えるよう保存しておく(レビュー指摘)
+      source_url: `https://www.themoviedb.org/${candidate.mediaType}/${candidate.tmdbId}`,
+      raw_fields: JSON.stringify({
+        title: candidate.title,
+        mediaType: candidate.mediaType,
+        releaseDate: candidate.releaseDate,
+        runtimeMinutes: candidate.runtimeMinutes,
+        episodeRuntimeMinutes: candidate.episodeRuntimeMinutes,
+        numberOfEpisodes: candidate.numberOfEpisodes,
+      }),
+      deletion_status: "active",
+      // TMDBは「6ヶ月を超える情報キャッシュ禁止」の対象のため、再取得基準として
+      // 書き込み時刻を記録しておく。定期再取得・削除ジョブ自体は今回のスコープ外
+      // (画像プロキシ実装時に他ジャンルと合わせて一括対応する方針。ユーザー合意済み)
+      cached_at: now,
+      created_at: now,
+      updated_at: now,
+    })
+    .compile();
+
+  try {
+    await d1.batch([
+      d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
+      d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+    ]);
+  } catch (err) {
+    // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽と同じ扱い)
+    if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
+      const raceWinnerId = await findExistingMovieCatalogId(db, sourceId);
+      if (raceWinnerId) {
+        return raceWinnerId;
+      }
+    }
+    throw err;
   }
 
   return catalogId;
