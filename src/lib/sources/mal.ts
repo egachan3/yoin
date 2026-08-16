@@ -183,13 +183,14 @@ async function malFetch(path: string, params: Record<string, string>, clientId: 
 /**
  * APIに投げる前に弾く最小クエリ長。無駄なリクエストとレート消費を避ける。
  *
- * 【未検証】MALの公式ドキュメントに`q`の最小長の記載がなく、実際の閾値
- * (1文字なのか2文字なのか3文字なのか)は未確認。ここでは保守的に2を置いている。
- * 実データで確認できたら、確認日とともにこのコメントを更新すること。
- * なお閾値の推定が外れてMAL側で400になった場合も、MalBadRequestErrorとして
+ * 【確認済み・2026-08-16】実際にMAL API(v2/anime)へ直接クエリを投げて確認した。
+ * 日本語・英数字とも、1〜2文字は400(`{"error":"bad_request","message":"invalid q"}`)、
+ * 3文字から200になる。公式ドキュメントには記載がなく、コミュニティ側の記述でも
+ * 見当たらなかったため実測が唯一の根拠。beta APIのため将来変更される可能性はある。
+ * 推定が外れてMAL側で400になった場合も、MalBadRequestErrorとして
  * 「検索語が短い可能性」を伝えるメッセージに落ちるため、ユーザーが詰むことはない。
  */
-export const MAL_MIN_QUERY_LENGTH = 2;
+export const MAL_MIN_QUERY_LENGTH = 3;
 
 /**
  * MALを叩く全経路で共有するレート制限の設定。

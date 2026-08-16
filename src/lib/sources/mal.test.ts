@@ -12,6 +12,7 @@ import {
   buildRawFields,
   MalForbiddenError,
   MalBadRequestError,
+  MAL_MIN_QUERY_LENGTH,
   type MalCandidate,
 } from "./mal";
 
@@ -311,6 +312,15 @@ describe("buildSourceId / buildSourceUrl / displayTitle", () => {
     expect(displayTitle({ title: "Jujutsu Kaisen", titleJa: null })).toBe("Jujutsu Kaisen");
     // 空白のみの日本語タイトルは実質ないものとして扱う
     expect(displayTitle({ title: "Jujutsu Kaisen", titleJa: "   " })).toBe("Jujutsu Kaisen");
+  });
+});
+
+describe("MAL_MIN_QUERY_LENGTH", () => {
+  it("3である(2026-08-16に実際のMAL APIへ問い合わせて確認した値)", () => {
+    // 日本語・英数字とも、実測で1〜2文字は400、3文字から200になることを確認済み。
+    // 定数がずれると「2文字は通るはずが実際は400になる」無駄なAPI呼び出しが
+    // 発生する(レート制限を無駄に消費する)ため、値そのものをテストで固定する
+    expect(MAL_MIN_QUERY_LENGTH).toBe(3);
   });
 });
 
