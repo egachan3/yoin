@@ -87,6 +87,25 @@ describe("getAccessToken", () => {
     expect(url).toContain("grant_type=client_credentials");
   });
 
+  it("Twitchトークン発行が失敗したら、URL(client_secretを含む)を出さずにstatus/bodyのみログに残す", async () => {
+    // client_secret誤り等の設定不備は、実際にはigdbFetch側ではなくここで
+    // 最初に失敗する経路(2回目レビュー指摘)。ログにclient_secretが漏れないことも
+    // あわせて検証する
+    const { kv } = createKvStub();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response('{"message":"invalid client secret"}', { status: 403 })));
+
+    await expect(getAccessToken(kv, "client-id", "super-secret-value")).rejects.toThrow("Twitch token request failed: 403");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[igdb] Twitchトークン発行に失敗しました",
+      expect.objectContaining({ status: 403, body: '{"message":"invalid client secret"}' }),
+    );
+    const loggedArgs = JSON.stringify(errorSpy.mock.calls);
+    expect(loggedArgs).not.toContain("super-secret-value");
+    errorSpy.mockRestore();
+  });
+
   it("保存するTTLは実際のexpires_inより安全マージン分短い(トークン失効前に削除させるため)", async () => {
     const { kv } = createKvStub();
     const putSpy = kv.put as unknown as ReturnType<typeof vi.fn>;

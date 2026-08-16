@@ -73,6 +73,15 @@ async function issueAndStoreToken(
 
   const res = await fetch(url.toString(), { method: "POST", signal: AbortSignal.timeout(8000) });
   if (!res.ok) {
+    // Client Secret誤り等の設定不備は、実際にはIGDB本体(/games等)ではなく
+    // ここ(Twitchのトークン発行エンドポイント)で最初に失敗する。igdbFetch側の
+    // ログだけでは典型的な設定不備シナリオを取り逃すため、ここにも同じ方針で
+    // ログを残す(2回目レビュー指摘)。
+    // 【注意】URLにはclient_secretがクエリパラメータとして含まれる(IGDB公式の
+    // 指定通り)ため、url.toString()は絶対にログに出さない。ログに出すのは
+    // レスポンス側のstatus/bodyのみ
+    const errBody = await res.text().catch(() => "");
+    console.error("[igdb] Twitchトークン発行に失敗しました", { status: res.status, body: errBody.slice(0, 500) });
     throw new Error(`Twitch token request failed: ${res.status}`);
   }
   const parsed = TwitchTokenResponseSchema.parse(await res.json());
