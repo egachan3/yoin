@@ -10,7 +10,7 @@ import {
   displayTitle,
   computeDuration,
   buildRawFields,
-  MalRateLimitError,
+  MalForbiddenError,
   MalBadRequestError,
   type MalCandidate,
 } from "./mal";
@@ -185,7 +185,7 @@ describe("searchAnime / searchManga", () => {
     expect(results[0].mainPicture).toBeNull();
   });
 
-  it("画像はlargeを優先し、largeが無ければmediumにフォールバックする", async () => {
+  it("largeが無ければmediumにフォールバックする(large優先は上の正規化テストで検証済み)", async () => {
     // 棚グリッドはRetinaで実効280px以上必要でmedium(幅200px前後)だとぼやける
     vi.stubGlobal(
       "fetch",
@@ -214,21 +214,21 @@ describe("searchAnime / searchManga", () => {
   });
 });
 
-describe("レート制限の扱い", () => {
+describe("HTTPエラーの扱い", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("403はMalRateLimitErrorとして投げる(MALは429ではなく403で返すため)", async () => {
+  it("403はMalForbiddenErrorとして投げる(MALは429ではなく403で返すため)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 403 })));
 
-    await expect(searchAnime("test", "dummy-client-id")).rejects.toBeInstanceOf(MalRateLimitError);
+    await expect(searchAnime("test", "dummy-client-id")).rejects.toBeInstanceOf(MalForbiddenError);
   });
 
   it("403以外のエラーは通常のErrorとして投げる", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 500 })));
 
-    await expect(searchAnime("test", "dummy-client-id")).rejects.not.toBeInstanceOf(MalRateLimitError);
+    await expect(searchAnime("test", "dummy-client-id")).rejects.not.toBeInstanceOf(MalForbiddenError);
   });
 
   it("403のレスポンスボディを保持する(レート制限とClient ID無効の切り分けに要る)", async () => {

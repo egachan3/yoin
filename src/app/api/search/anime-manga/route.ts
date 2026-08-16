@@ -2,41 +2,18 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import {
   searchMal,
-  MalRateLimitError,
+  MalForbiddenError,
   MalBadRequestError,
   MAL_MIN_QUERY_LENGTH,
   MAL_SEARCH_LIMIT,
+  MAL_RATE_LIMIT,
+  MAL_RATE_LIMIT_KEY,
   type MalMediaType,
 } from "@/lib/sources/mal";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 function parseMediaType(value: string | null): MalMediaType | null {
   return value === "anime" || value === "manga" ? value : null;
-}
-
-const RATE_LIMIT_WINDOW_SECONDS = 60;
-const RATE_LIMIT_MAX_REQUESTS = 30;
-
-/**
- * ユーザーごとの検索回数を制限する。
- *
- * MALのClient IDは全ユーザーで共有される単一のグローバル資源で、しかも
- * レート制限が約1req/秒と厳しい(spec 3.4)。1人が連打すると**全ユーザーの**
- * アニメ・マンガ検索が403で止まるため、その経路だけは塞いでおく。
- * KVには原子的なインクリメントがないため厳密な上限保証ではないが、
- * 暴走の抑止という目的には十分(onboarding/handleと同じ考え方)。
- *
- * 厳密な1req/秒のグローバル直列化はDurable Objectsなしには作れないため、
- * MVPではper-userの上限に留める。
- */
-async function checkSearchRateLimit(kv: KVNamespace, userId: string): Promise<boolean> {
-  const key = `mal-search:${userId}`;
-  const current = await kv.get(key);
-  const count = current ? Number(current) : 0;
-  if (count >= RATE_LIMIT_MAX_REQUESTS) {
-    return false;
-  }
-  await kv.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW_SECONDS });
-  return true;
 }
 
 export async function GET(request: Request) {
@@ -86,7 +63,7 @@ export async function GET(request: Request) {
   const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0;
 
   // 入力の妥当性を確認した後にレート制限を消費する(不正な入力で枠を減らさない)
-  if (!(await checkSearchRateLimit(env.RATE_LIMIT, session.user.id))) {
+  if (!(await checkRateLimit(env.RATE_LIMIT, MAL_RATE_LIMIT_KEY, session.user.id, MAL_RATE_LIMIT))) {
     return Response.json(
       { error: "rate_limited", message: "検索の回数が多すぎます。少し時間をおいてお試しください。" },
       { status: 429 },
@@ -103,7 +80,7 @@ export async function GET(request: Request) {
   } catch (err) {
     // MALはレート制限を403で返す(429ではない)。ユーザーに「時間をおいて再試行」と
     // 案内できるよう、汎用の検索失敗と区別して429で返す(spec 3.4)
-    if (err instanceof MalRateLimitError) {
+    if (err instanceof MalForbiddenError) {
       return Response.json(
         { error: "rate_limited", message: "混み合っています。少し時間をおいてお試しください。" },
         { status: 429 },

@@ -4,7 +4,16 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { findOrCreateAnimeMangaCatalogEntity } from "@/db/catalog";
-import { verifyMalCandidate, computeDuration, MalRateLimitError, type MalCandidate } from "@/lib/sources/mal";
+import {
+  verifyMalCandidate,
+  computeDuration,
+  MalForbiddenError,
+  MalBadRequestError,
+  MAL_RATE_LIMIT,
+  MAL_RATE_LIMIT_KEY,
+  type MalCandidate,
+} from "@/lib/sources/mal";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // malId/mediaTypeのみを「再照会のヒント」として受け取る。title等はクライアントから
 // 受け取らない(book/music/movieと同じく再照会結果のみを信頼する)
@@ -35,14 +44,31 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
   }
 
+  // 追加もMALへの実リクエスト(verifyMalCandidate)を発生させるため、検索と枠を
+  // 共有してレート制限をかける。検索側だけ塞いでも、こちらが迂回路として空く
+  if (!(await checkRateLimit(env.RATE_LIMIT, MAL_RATE_LIMIT_KEY, session.user.id, MAL_RATE_LIMIT))) {
+    return Response.json(
+      { error: "rate_limited", message: "操作の回数が多すぎます。少し時間をおいてお試しください。" },
+      { status: 429 },
+    );
+  }
+
   let candidate: MalCandidate | null;
   try {
     candidate = await verifyMalCandidate(parsed.data.mediaType, parsed.data.malId, env.MAL_CLIENT_ID);
   } catch (err) {
-    if (err instanceof MalRateLimitError) {
+    if (err instanceof MalForbiddenError) {
       return Response.json(
         { error: "rate_limited", message: "混み合っています。少し時間をおいてお試しください。" },
         { status: 429 },
+      );
+    }
+    // MALが入力を受け付けなかった場合(不正なmalId等)。検索側と同じく、
+    // 「もう一度お試しください」でユーザーがリトライを繰り返す経路を作らない
+    if (err instanceof MalBadRequestError) {
+      return Response.json(
+        { error: "not_found", message: "指定された作品が見つかりませんでした。検索からやり直してください。" },
+        { status: 422 },
       );
     }
     return Response.json(

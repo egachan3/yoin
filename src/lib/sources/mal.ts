@@ -125,17 +125,18 @@ function toMangaCandidate(node: z.infer<typeof MangaNodeSchema>): MalCandidate {
 /**
  * MALが403を返したことを表す。MALはレート制限を429ではなく403で返す(spec 3.4)。
  *
- * 【注意】403はレート制限とClient ID無効の**両方**で返る。両者はレスポンス
- * ボディにしか差が出ないため、判別材料としてbodyを保持する。ユーザーへの
- * 案内は同じ(時間をおいて再試行)でよいが、運用側では区別が必要:
- * Client IDが失効・停止すると全ユーザーの全リクエストが恒久的に403になり、
- * それを「混み合っています」とだけ表示していると障害に気づけない。
+ * 【注意】403は**レート制限とClient ID無効の両方**で返り、区別はレスポンス
+ * ボディにしか現れない。「RateLimit」ではなく「Forbidden」と名付けているのは
+ * そのため: レート制限だと決めつけた名前にすると、Client IDが失効・停止して
+ * 全ユーザーの機能が恒久的に止まっているときにも「混み合っています」を出し
+ * 続ける実装を、コードの見た目が正当化してしまう。
+ * 判別材料としてbodyを保持し、malFetch側で必ずログに残している。
  */
-export class MalRateLimitError extends Error {
+export class MalForbiddenError extends Error {
   readonly body: string;
   constructor(body = "") {
     super("MAL returned 403 (rate limit or invalid client id)");
-    this.name = "MalRateLimitError";
+    this.name = "MalForbiddenError";
     this.body = body;
   }
 }
@@ -164,7 +165,7 @@ async function malFetch(path: string, params: Record<string, string>, clientId: 
     // Agreement Section 18の監査要件(API利用記録を残す)にも資する
     const body = await res.text().catch(() => "");
     console.error("[mal] 403を受信しました", { path, body: body.slice(0, 500) });
-    throw new MalRateLimitError(body);
+    throw new MalForbiddenError(body);
   }
   if (res.status === 400) {
     // 短すぎるクエリ等。汎用エラーに落とすと「検索に失敗しました」になり、
@@ -189,6 +190,22 @@ async function malFetch(path: string, params: Record<string, string>, clientId: 
  * 「検索語が短い可能性」を伝えるメッセージに落ちるため、ユーザーが詰むことはない。
  */
 export const MAL_MIN_QUERY_LENGTH = 2;
+
+/**
+ * MALを叩く全経路で共有するレート制限の設定。
+ *
+ * Client IDは全ユーザーで共有される単一のグローバル資源で、しかもMAL側の
+ * レート制限が約1req/秒と厳しい(spec 3.4)。1人が過剰に叩くと**全ユーザーの**
+ * アニメ・マンガ機能が403で止まるため、その経路を塞ぐ。
+ *
+ * 検索(GET)と追加(POST)はどちらもMALへの実リクエストを発生させるため、
+ * **枠は共有する**。片方だけ塞いでも、もう片方が迂回路として空いてしまう。
+ *
+ * route.tsではなくここに置いているのは、Next.jsのroute.tsがGET/POST等以外の
+ * exportを許さないため(computeDurationと同じ理由)。
+ */
+export const MAL_RATE_LIMIT = { windowSeconds: 60, maxRequests: 40 };
+export const MAL_RATE_LIMIT_KEY = "mal";
 
 /** 1回の検索で取得する件数。「もっと探す」の次オフセット判定にも使う */
 export const MAL_SEARCH_LIMIT = 20;

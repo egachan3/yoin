@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type MediaType = "anime" | "manga";
@@ -30,6 +30,11 @@ export default function AnimeMangaSearchPage() {
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
 	const [searchError, setSearchError] = useState<string | null>(null);
 	const [addingKey, setAddingKey] = useState<string | null>(null);
+	// 実行中の検索を識別する連番と、現在アクティブな種別。
+	// stateはクロージャに呼び出し時点の値で固定されるため、await後の判定には使えない。
+	// refなら常に最新値を読めるので、古いレスポンスを確実に破棄できる
+	const searchSeqRef = useRef(0);
+	const activeTypeRef = useRef<MediaType>("anime");
 	const [addError, setAddError] = useState<{ key: string; message: string } | null>(null);
 
 	// MALのアニメIDとマンガIDは別採番で、同じ数値IDが両方に実在する。
@@ -48,8 +53,14 @@ export default function AnimeMangaSearchPage() {
 		url.searchParams.set("type", targetType);
 		url.searchParams.set("offset", String(offset));
 
+		const seq = ++searchSeqRef.current;
+
 		try {
 			const res = await fetch(url.toString());
+			// 種別を切り替えた後・別のクエリで再検索した後に到着した古いレスポンスは
+			// 一切反映しない。反映するとアニメとマンガが1つのリストに混ざり、
+			// 「もっと探す」で両種別が追記され続ける
+			if (seq !== searchSeqRef.current || activeTypeRef.current !== targetType) return;
 			if (!res.ok) {
 				// レート制限(429)・設定不足(502)など、原因ごとに違うメッセージを
 				// サーバーが返すため、そのまま表示する。「検索に失敗しました」で
@@ -66,17 +77,20 @@ export default function AnimeMangaSearchPage() {
 				return;
 			}
 			const data = (await res.json()) as SearchResponse;
-			// トグルを切り替えた後に到着した古いレスポンスは捨てる。
-			// 反映するとアニメとマンガが1つのリストに混ざる
-			if (data.mediaType !== targetType) return;
 			setCandidates((prev) => (append ? [...prev, ...data.candidates] : data.candidates));
 			setNextOffset(data.nextOffset);
 		} catch {
 			// 通信断・不正なJSON。finallyがないとstatusがloadingのまま固定され、
 			// 検索ボタンがリロードするまで押せなくなる
-			setSearchError("通信に失敗しました。接続を確認してもう一度お試しください。");
+			if (seq === searchSeqRef.current) {
+				setSearchError("通信に失敗しました。接続を確認してもう一度お試しください。");
+			}
 		} finally {
-			setStatus("idle");
+			// 古いリクエストの完了で、後から始まった検索のローディング表示を
+			// 消してしまわないようにする
+			if (seq === searchSeqRef.current) {
+				setStatus("idle");
+			}
 		}
 	}
 
@@ -86,6 +100,7 @@ export default function AnimeMangaSearchPage() {
 	}
 
 	function handleMediaTypeChange(next: MediaType) {
+		activeTypeRef.current = next;
 		setMediaType(next);
 		// 種別を切り替えたら前の結果は破棄する。残したまま追加すると、
 		// 表示中の候補と送信するmediaTypeが食い違う
