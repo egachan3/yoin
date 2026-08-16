@@ -223,6 +223,22 @@ describe("serveWorkImage", () => {
     expect(store.has("img-404:work-6")).toBe(true);
   });
 
+  it("charsetパラメータ付き・大文字混じりのcontent-typeも正規化して正しく許可する", async () => {
+    // 完全一致比較にすると"image/jpeg; charset=binary"のような正当な値まで
+    // 誤って拒否してしまう(2回目レビューで発見した副作用)
+    const { r2 } = createR2Stub();
+    const { kv, store } = createKvStub();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(imageResponse("bytes", "Image/JPEG; charset=binary")));
+    const { deps, flush } = createDeps(r2, kv);
+
+    const res = await serveWorkImage(deps, "work-charset", "grid", source);
+    await flush();
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/jpeg");
+    expect(store.has("img-404:work-charset")).toBe(false);
+  });
+
   it("image/svg+xmlはスクリプト埋め込みが可能なため拒否する(XSS対策)", async () => {
     const { r2 } = createR2Stub();
     const { kv, store } = createKvStub();

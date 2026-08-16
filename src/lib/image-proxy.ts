@@ -168,7 +168,12 @@ export async function serveWorkImage(
     return new Response(null, NOT_FOUND_RESPONSE_INIT);
   }
 
-  const contentType = originRes.headers.get("content-type") ?? "";
+  // "image/jpeg; charset=binary"のようなパラメータや大文字混じりの値も
+  // MIME仕様上許容されるため、比較前に正規化する(charset等のパラメータを
+  // 落として小文字化)。正規化せず完全一致で比較すると、配信元がパラメータ
+  // 付きの値を返しただけで正当な画像が誤って拒否される(2回目レビューで発見)
+  const rawContentType = originRes.headers.get("content-type") ?? "";
+  const contentType = rawContentType.split(";")[0].trim().toLowerCase();
   // svg+xmlはスクリプト埋め込みが可能なため許可しない(XSSベクタになり得る)。
   // 具体的なホワイトリストにすることで、想定外・悪意あるcontent-typeの
   // レスポンスがそのまま自ドメインで配信されるのを防ぐ
