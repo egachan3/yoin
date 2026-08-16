@@ -28,3 +28,8 @@ TMDB_API_KEY=
 # Client Secretは不要(client_authのみで必要なエンドポイントは全て叩ける)
 # 必須。未設定だとアニメ・マンガの検索/追加は502を返す
 MAL_CLIENT_ID=
+
+# ゲーム検索 (https://dev.twitch.tv/console/apps でアプリ登録し Client ID/Secret を取得する)
+# 必須。未設定だとゲームの検索/追加は502を返す
+IGDB_CLIENT_ID=
+IGDB_CLIENT_SECRET=

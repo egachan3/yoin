@@ -1,0 +1,132 @@
+import { z } from "zod";
+import { uuidv7 } from "uuidv7";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { createAuth } from "@/lib/auth";
+import { createDb } from "@/db/client";
+import { findOrCreateGameCatalogEntity } from "@/db/catalog";
+import {
+  verifyGameById,
+  computeDuration,
+  IgdbUnauthorizedError,
+  IgdbRateLimitError,
+  IGDB_RATE_LIMIT,
+  IGDB_RATE_LIMIT_KEY,
+  type IgdbCandidate,
+} from "@/lib/sources/igdb";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+// igdbIdのみを「再照会のヒント」として受け取る。title等はクライアントから
+// 受け取らない(他ジャンルと同じく再照会結果のみを信頼する)
+const AddGameSchema = z.object({
+  igdbId: z.number().int().positive(),
+});
+
+export async function POST(request: Request) {
+  const { env } = await getCloudflareContext({ async: true });
+  const auth = createAuth(env);
+
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) {
+    return Response.json(
+      { error: "not_configured", message: "IGDBのClient ID/Secretが設定されていません。" },
+      { status: 502 },
+    );
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = AddGameSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
+  }
+
+  // 追加もIGDBへの実リクエスト(verifyGameById)を発生させるため、検索と枠を
+  // 共有してレート制限をかける(MALと同じ考え方。片方だけ塞ぐと迂回路が残る)
+  if (!(await checkRateLimit(env.RATE_LIMIT, IGDB_RATE_LIMIT_KEY, session.user.id, IGDB_RATE_LIMIT))) {
+    return Response.json(
+      { error: "rate_limited", message: "操作の回数が多すぎます。少し時間をおいてお試しください。" },
+      { status: 429 },
+    );
+  }
+
+  let candidate: IgdbCandidate | null;
+  try {
+    candidate = await verifyGameById(parsed.data.igdbId, env.RATE_LIMIT, env.IGDB_CLIENT_ID, env.IGDB_CLIENT_SECRET);
+  } catch (err) {
+    if (err instanceof IgdbRateLimitError) {
+      return Response.json(
+        { error: "rate_limited", message: "混み合っています。少し時間をおいてお試しください。" },
+        { status: 429 },
+      );
+    }
+    if (err instanceof IgdbUnauthorizedError) {
+      return Response.json(
+        { error: "not_configured", message: "IGDBとの認証に失敗しました。しばらくしてから再度お試しください。" },
+        { status: 502 },
+      );
+    }
+    return Response.json(
+      { error: "verify_failed", message: "確認に失敗しました。もう一度お試しください。" },
+      { status: 502 },
+    );
+  }
+  if (!candidate) {
+    return Response.json(
+      { error: "not_found", message: "指定された作品が見つかりませんでした。検索からやり直してください。" },
+      { status: 422 },
+    );
+  }
+
+  const db = createDb(env.DB);
+
+  let catalogId: string;
+  try {
+    catalogId = await findOrCreateGameCatalogEntity(db, env.DB, candidate);
+  } catch {
+    return Response.json(
+      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
+      { status: 502 },
+    );
+  }
+
+  const duration = computeDuration(candidate);
+  const now = Math.floor(Date.now() / 1000);
+  const entryId = uuidv7();
+
+  try {
+    await db
+      .insertInto("shelf_entries")
+      .values({
+        id: entryId,
+        user_id: session.user.id,
+        catalog_id: catalogId,
+        source_type: "manual_search",
+        // ゲームのデフォルト状態はplanned(spec セクション5の初期値テーブル。
+        // 書籍と同じく「積んでいる」時点での追加が主要動線という判断)
+        status: "planned",
+        is_revisiting: 0,
+        revisit_count: 0,
+        comment: null,
+        rating: null,
+        estimated_duration_seconds: duration.estimatedSeconds,
+        duration_pending: duration.pending,
+        raw_duration_value: duration.rawValue,
+        raw_duration_unit: duration.rawUnit,
+        added_at: now,
+        completed_at: null,
+        created_at: now,
+        updated_at: now,
+      })
+      .execute();
+  } catch {
+    return Response.json(
+      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
+      { status: 502 },
+    );
+  }
+
+  return Response.json({ id: entryId, catalogId }, { status: 201 });
+}
