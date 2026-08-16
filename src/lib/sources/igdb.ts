@@ -120,6 +120,22 @@ const TimeToBeatSchema = z.object({
 });
 const TimeToBeatListResponseSchema = z.array(TimeToBeatSchema);
 
+/**
+ * Apicalypseの文字列リテラル("...")に安全に埋め込めるようクエリをエスケープする。
+ *
+ * 【重要】バックスラッシュを先にエスケープしないと脱出できる。
+ * ダブルクオートだけを`\"`に置換すると、入力が既にバックスラッシュを含む場合
+ * (例: `foo\" test`)、置換後は元のバックスラッシュ+新しいエスケープ列で
+ * `\\"`という並びになる。標準的なエスケープ文法では`\\`が「エスケープされた
+ * バックスラッシュ1文字」として消費され、直後の`"`はエスケープされないまま
+ * 文字列を終端してしまう。結果として、終端以降の文字列(` test"; where ...`)が
+ * リテラルの外に出て、追加のApicalypse節(where/limit/sort等)を注入できる。
+ * バックスラッシュを先にエスケープすることでこの脱出経路を塞ぐ。
+ */
+function escapeApicalypseString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 function unixToIsoDate(unixSeconds: number | null | undefined): string | null {
   if (unixSeconds === null || unixSeconds === undefined) return null;
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
@@ -173,7 +189,11 @@ async function igdbFetch(
   if (res.status === 401) {
     if (isRetry) {
       // 再発行した直後のトークンでも401になった = トークン失効以外の原因
-      // (client_secret失効・IGDB側障害等)。無限ループを避けここで諦める
+      // (client_secret失効・IGDB側障害等)。無限ループを避けここで諦める。
+      // 「設定は合っているが一時的にIGDBが不調」なケースと運用上区別できるよう、
+      // ボディを必ずログに残す(MALのMalForbiddenErrorと同じ考え方)
+      const errBody = await res.text().catch(() => "");
+      console.error("[igdb] トークン再発行後も401を受信しました", { endpoint, body: errBody.slice(0, 500) });
       throw new IgdbUnauthorizedError();
     }
     return igdbFetch(endpoint, body, kv, clientId, clientSecret, true);
@@ -182,6 +202,8 @@ async function igdbFetch(
     throw new IgdbRateLimitError();
   }
   if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    console.error("[igdb] リクエストが失敗しました", { endpoint, status: res.status, body: errBody.slice(0, 500) });
     throw new Error(`IGDB request failed: ${res.status}`);
   }
   return res.json();
@@ -206,7 +228,7 @@ export async function searchGames(
   clientSecret: string,
   limit = 10,
 ): Promise<IgdbCandidate[]> {
-  const escapedQuery = query.replace(/"/g, '\\"');
+  const escapedQuery = escapeApicalypseString(query);
   const body = `search "${escapedQuery}"; fields name,slug,cover.image_id,first_release_date,platforms.name; where version_parent = null; limit ${limit};`;
   const json = await igdbFetch("/games", body, kv, clientId, clientSecret);
   const games = GameListResponseSchema.parse(json);

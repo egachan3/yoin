@@ -157,6 +157,27 @@ describe("searchGames", () => {
     expect((init as RequestInit).body).toContain('search "Half-Life \\"Alyx\\""');
   });
 
+  it("バックスラッシュを先にエスケープし、既存のバックスラッシュとの組み合わせで文字列リテラルから脱出できないようにする", async () => {
+    // 「\"」を含む入力に対し、ダブルクオートだけをエスケープすると
+    // 元のバックスラッシュ+新しいエスケープ文字で`\\"`という並びになり、
+    // 標準的なエスケープ文法では`\\`が「エスケープされたバックスラッシュ」
+    // として消費され、直後の`"`が終端してしまう。それを防げているか検証する
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await searchGames('foo\\" test', kv, "client-id", "client-secret");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = (init as RequestInit).body as string;
+    // search節の文字列リテラルは`search "..."`のペアで正しく閉じている必要がある。
+    // 脱出できていれば、意図しない位置(where節等)にダブルクオートが混入する
+    expect(body).toContain('search "foo\\\\\\" test"');
+    // where version_parent = null 節が、注入によって壊れず1回だけ存在すること
+    expect(body.match(/where version_parent = null/g)).toHaveLength(1);
+  });
+
   it("coverがない作品もパースできる(画像未収録タイトル)", async () => {
     const { kv, store } = createKvStub();
     store.set("igdb:access_token", "tok");
