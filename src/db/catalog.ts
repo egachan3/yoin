@@ -403,7 +403,9 @@ export async function findOrCreateMovieCatalogEntity(
       catalog_entity_id: catalogId,
       source: "tmdb",
       source_id: sourceId,
-      source_url: null,
+      // TMDBは正規URLを機械的に組み立てられる。来歴追跡・削除要請時の突き合わせに
+      // 使えるよう保存しておく(レビュー指摘)
+      source_url: `https://www.themoviedb.org/${candidate.mediaType}/${candidate.tmdbId}`,
       raw_fields: JSON.stringify({
         title: candidate.title,
         mediaType: candidate.mediaType,

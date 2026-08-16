@@ -59,7 +59,10 @@ const TvDetailSchema = z.object({
   name: z.string(),
   poster_path: z.string().nullable().optional(),
   first_air_date: z.string().nullable().optional(),
-  episode_run_time: z.array(z.number()).optional(),
+  // TMDBが将来nullを返すケースに備えnullableも許容する(レビュー指摘)。
+  // ここでパース自体を失敗させると、本来はduration計算だけをpending扱いに
+  // すべき場面がnot_foundエラーに化けてしまう
+  episode_run_time: z.array(z.number()).nullable().optional(),
   number_of_episodes: z.number().nullable().optional(),
 });
 
@@ -127,7 +130,27 @@ export async function searchTv(query: string, apiKey: string, page = 1): Promise
  * 個別のエンドポイントを並行で叩いて統合する(spec 5.4決定)。
  */
 export async function searchMoviesAndTv(query: string, apiKey: string, page = 1): Promise<TmdbCandidate[]> {
-  const [movies, tv] = await Promise.all([searchMovies(query, apiKey, page), searchTv(query, apiKey, page)]);
+  // Promise.allとせず個別にsettleさせる。片方(例: /search/tv)だけが一時的な
+  // エラー/タイムアウトになっても、成功しているもう片方の結果まで巻き込んで
+  // 検索全体を失敗させないため(レビュー指摘)。両方失敗した場合のみ例外を
+  // 投げ、呼び出し側(検索APIルート)が502として扱えるようにする
+  const [movieResult, tvResult] = await Promise.allSettled([
+    searchMovies(query, apiKey, page),
+    searchTv(query, apiKey, page),
+  ]);
+
+  if (movieResult.status === "rejected" && tvResult.status === "rejected") {
+    throw movieResult.reason;
+  }
+  if (movieResult.status === "rejected") {
+    console.error("[searchMoviesAndTv] 映画検索に失敗しました(ドラマ側の結果のみ返却)", movieResult.reason);
+  }
+  if (tvResult.status === "rejected") {
+    console.error("[searchMoviesAndTv] ドラマ検索に失敗しました(映画側の結果のみ返却)", tvResult.reason);
+  }
+
+  const movies = movieResult.status === "fulfilled" ? movieResult.value : [];
+  const tv = tvResult.status === "fulfilled" ? tvResult.value : [];
   return [...movies, ...tv];
 }
 

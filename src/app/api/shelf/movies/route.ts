@@ -55,17 +55,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = AddMovieSchema.safeParse(body);
-  if (!parsed.success) {
-    return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
-  }
-
+  // 設定不足(APIキー未設定)は入力不備より先に検知する(search/movies/route.tsと
+  // 同じ理由。レビュー指摘)
   if (!env.TMDB_API_KEY) {
     return Response.json(
       { error: "not_configured", message: "TMDB APIキーが設定されていません。" },
       { status: 502 },
     );
+  }
+
+  const body = await request.json().catch(() => null);
+  const parsed = AddMovieSchema.safeParse(body);
+  if (!parsed.success) {
+    return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
   }
 
   let candidate: TmdbCandidate | null;

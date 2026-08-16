@@ -107,6 +107,29 @@ describe("searchMoviesAndTv", () => {
     // 同じtmdbId(508947)でもmediaTypeで区別できることの確認
     expect(results[0].tmdbId).toBe(results[1].tmdbId);
   });
+
+  it("片方のAPIだけ失敗しても、成功した側の結果は返す(回帰テスト)", async () => {
+    // Promise.allだと片方の失敗で全体がrejectしてしまい、成功していた
+    // 映画側の結果まで失われる問題を修正した(レビュー指摘)
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes("/search/movie")) {
+        return Promise.resolve(jsonResponse({ results: [SAMPLE_MOVIE_SEARCH_ITEM] }));
+      }
+      return Promise.reject(new Error("TMDB TV search timeout"));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const results = await searchMoviesAndTv("test", "dummy-key");
+
+    expect(results).toHaveLength(1);
+    expect(results[0].mediaType).toBe("movie");
+  });
+
+  it("両方のAPIが失敗した場合は例外を投げる(呼び出し側が502として扱えるように)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("TMDB全滅")));
+
+    await expect(searchMoviesAndTv("test", "dummy-key")).rejects.toThrow();
+  });
 });
 
 describe("verifyMovieById / verifyTvById", () => {
@@ -137,6 +160,20 @@ describe("verifyMovieById / verifyTvById", () => {
     const result = await verifyMovieById(999999999, "dummy-key");
 
     expect(result).toBeNull();
+  });
+
+  it("episode_run_timeがnullで返っても検証は成功する(回帰テスト)", async () => {
+    // TMDBが将来この値をnullで返すケースに備えた防御。ここでパースが失敗すると
+    // 本来duration計算だけpending扱いにすべき場面がnot_foundエラーに化ける(レビュー指摘)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(jsonResponse({ ...SAMPLE_TV_DETAIL, episode_run_time: null })),
+    );
+
+    const result = await verifyTvById(508947, "dummy-key");
+
+    expect(result).not.toBeNull();
+    expect(result?.episodeRuntimeMinutes).toBeNull();
   });
 });
 

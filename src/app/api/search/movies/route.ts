@@ -11,6 +11,16 @@ export async function GET(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // 設定不足(APIキー未設定)は入力不備より先に検知する。開発時に空クエリで
+  // 気づかず「検索語を入力してください」だけが表示され、根本原因(設定不足)に
+  // 気づきにくくなるのを避けるため(レビュー指摘)
+  if (!env.TMDB_API_KEY) {
+    return Response.json(
+      { error: "not_configured", message: "TMDB APIキーが設定されていません。" },
+      { status: 502 },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get("q")?.trim();
   if (!query) {
@@ -19,13 +29,6 @@ export async function GET(request: Request) {
   const pageParam = searchParams.get("page");
   const page = pageParam ? Number(pageParam) : 1;
   const safePage = Number.isFinite(page) && page >= 1 ? page : 1;
-
-  if (!env.TMDB_API_KEY) {
-    return Response.json(
-      { error: "not_configured", message: "TMDB APIキーが設定されていません。" },
-      { status: 502 },
-    );
-  }
 
   try {
     const candidates = await searchMoviesAndTv(query, env.TMDB_API_KEY, safePage);
