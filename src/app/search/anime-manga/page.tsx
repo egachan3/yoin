@@ -29,8 +29,15 @@ export default function AnimeMangaSearchPage() {
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
 	const [searchError, setSearchError] = useState<string | null>(null);
-	const [addingId, setAddingId] = useState<number | null>(null);
-	const [addError, setAddError] = useState<{ malId: number; message: string } | null>(null);
+	const [addingKey, setAddingKey] = useState<string | null>(null);
+	const [addError, setAddError] = useState<{ key: string; message: string } | null>(null);
+
+	// MALのアニメIDとマンガIDは別採番で、同じ数値IDが両方に実在する。
+	// malIdだけをkeyにすると、種別をまたいだ結果が並んだ際にkeyが衝突し、
+	// 押していないカードが「追加中…」になる等の取り違えが起きる
+	function candidateKey(c: MalCandidate): string {
+		return `${c.mediaType}:${c.malId}`;
+	}
 
 	async function runSearch(offset: number, append: boolean, targetType: MediaType) {
 		if (!query.trim()) return;
@@ -41,20 +48,36 @@ export default function AnimeMangaSearchPage() {
 		url.searchParams.set("type", targetType);
 		url.searchParams.set("offset", String(offset));
 
-		const res = await fetch(url.toString());
-		if (!res.ok) {
-			// レート制限(429)・設定不足(502)など、原因ごとに違うメッセージを
-			// サーバーが返すため、そのまま表示する。「検索に失敗しました」で
-			// 潰すと、待てば直るのか設定が要るのかがユーザーに伝わらない
-			const body = (await res.json().catch(() => null)) as { message?: string } | null;
-			setSearchError(body?.message ?? "検索に失敗しました。もう一度お試しください。");
+		try {
+			const res = await fetch(url.toString());
+			if (!res.ok) {
+				// レート制限(429)・設定不足(502)など、原因ごとに違うメッセージを
+				// サーバーが返すため、そのまま表示する。「検索に失敗しました」で
+				// 潰すと、待てば直るのか設定が要るのかがユーザーに伝わらない
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				setSearchError(body?.message ?? "検索に失敗しました。もう一度お試しください。");
+				// 新規検索の失敗時は前回の結果を残さない。残すとエラー表示の下に
+				// 別クエリの結果が並び、「もっと探す」を押すと異なるクエリの
+				// 結果が追記されて混ざる
+				if (!append) {
+					setCandidates([]);
+					setNextOffset(null);
+				}
+				return;
+			}
+			const data = (await res.json()) as SearchResponse;
+			// トグルを切り替えた後に到着した古いレスポンスは捨てる。
+			// 反映するとアニメとマンガが1つのリストに混ざる
+			if (data.mediaType !== targetType) return;
+			setCandidates((prev) => (append ? [...prev, ...data.candidates] : data.candidates));
+			setNextOffset(data.nextOffset);
+		} catch {
+			// 通信断・不正なJSON。finallyがないとstatusがloadingのまま固定され、
+			// 検索ボタンがリロードするまで押せなくなる
+			setSearchError("通信に失敗しました。接続を確認してもう一度お試しください。");
+		} finally {
 			setStatus("idle");
-			return;
 		}
-		const data = (await res.json()) as SearchResponse;
-		setCandidates((prev) => (append ? [...prev, ...data.candidates] : data.candidates));
-		setNextOffset(data.nextOffset);
-		setStatus("idle");
 	}
 
 	async function handleSubmit(e: React.FormEvent) {
@@ -69,28 +92,33 @@ export default function AnimeMangaSearchPage() {
 		setCandidates([]);
 		setNextOffset(null);
 		setSearchError(null);
+		setAddError(null);
 	}
 
 	async function handleAdd(candidate: MalCandidate) {
-		setAddingId(candidate.malId);
+		const key = candidateKey(candidate);
+		setAddingKey(key);
 		setAddError(null);
-		const res = await fetch("/api/shelf/anime-manga", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			// 候補自身が持つmediaTypeを送る(画面のトグル状態ではなく)。
-			// 検索結果と操作の間でトグルが変わっても食い違わないようにするため
-			body: JSON.stringify({ mediaType: candidate.mediaType, malId: candidate.malId }),
-		});
-		setAddingId(null);
-		if (res.ok) {
-			router.push("/");
-			return;
+		try {
+			const res = await fetch("/api/shelf/anime-manga", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				// 候補自身が持つmediaTypeを送る(画面のトグル状態ではなく)。
+				// 検索結果と操作の間でトグルが変わっても食い違わないようにするため
+				body: JSON.stringify({ mediaType: candidate.mediaType, malId: candidate.malId }),
+			});
+			if (res.ok) {
+				router.push("/");
+				return;
+			}
+			const body = (await res.json().catch(() => null)) as { message?: string } | null;
+			setAddError({ key, message: body?.message ?? "追加に失敗しました。もう一度お試しください。" });
+		} catch {
+			// 通信断。ここでも「追加中…」のまま固定されるのを防ぐ
+			setAddError({ key, message: "通信に失敗しました。接続を確認してもう一度お試しください。" });
+		} finally {
+			setAddingKey(null);
 		}
-		const body = (await res.json().catch(() => null)) as { message?: string } | null;
-		setAddError({
-			malId: candidate.malId,
-			message: body?.message ?? "追加に失敗しました。もう一度お試しください。",
-		});
 	}
 
 	function subtitle(c: MalCandidate): string {
@@ -141,23 +169,26 @@ export default function AnimeMangaSearchPage() {
 			{searchError && <p style={{ color: "var(--color-accent-800)" }}>{searchError}</p>}
 
 			<div style={{ display: "grid", gap: "var(--space-3)" }}>
-				{candidates.map((c) => (
-					<div key={c.malId} className="card">
-						<p className="card-title">{c.titleJa?.trim() || c.title}</p>
-						<p className="card-meta">{subtitle(c) || "情報なし"}</p>
-						<button
-							type="button"
-							className="btn btn-secondary"
-							onClick={() => handleAdd(c)}
-							disabled={addingId === c.malId}
-						>
-							{addingId === c.malId ? "追加中…" : "棚に追加"}
-						</button>
-						{addError?.malId === c.malId && (
-							<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
-						)}
-					</div>
-				))}
+				{candidates.map((c) => {
+					const key = candidateKey(c);
+					return (
+						<div key={key} className="card">
+							<p className="card-title">{c.titleJa?.trim() || c.title}</p>
+							<p className="card-meta">{subtitle(c) || "情報なし"}</p>
+							<button
+								type="button"
+								className="btn btn-secondary"
+								onClick={() => handleAdd(c)}
+								disabled={addingKey === key}
+							>
+								{addingKey === key ? "追加中…" : "棚に追加"}
+							</button>
+							{addError?.key === key && (
+								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+							)}
+						</div>
+					);
+				})}
 			</div>
 
 			{candidates.length > 0 && nextOffset !== null && (

@@ -3,6 +3,7 @@ import { createAuth } from "@/lib/auth";
 import {
   searchMal,
   MalRateLimitError,
+  MalBadRequestError,
   MAL_MIN_QUERY_LENGTH,
   MAL_SEARCH_LIMIT,
   type MalMediaType,
@@ -10,6 +11,32 @@ import {
 
 function parseMediaType(value: string | null): MalMediaType | null {
   return value === "anime" || value === "manga" ? value : null;
+}
+
+const RATE_LIMIT_WINDOW_SECONDS = 60;
+const RATE_LIMIT_MAX_REQUESTS = 30;
+
+/**
+ * ユーザーごとの検索回数を制限する。
+ *
+ * MALのClient IDは全ユーザーで共有される単一のグローバル資源で、しかも
+ * レート制限が約1req/秒と厳しい(spec 3.4)。1人が連打すると**全ユーザーの**
+ * アニメ・マンガ検索が403で止まるため、その経路だけは塞いでおく。
+ * KVには原子的なインクリメントがないため厳密な上限保証ではないが、
+ * 暴走の抑止という目的には十分(onboarding/handleと同じ考え方)。
+ *
+ * 厳密な1req/秒のグローバル直列化はDurable Objectsなしには作れないため、
+ * MVPではper-userの上限に留める。
+ */
+async function checkSearchRateLimit(kv: KVNamespace, userId: string): Promise<boolean> {
+  const key = `mal-search:${userId}`;
+  const current = await kv.get(key);
+  const count = current ? Number(current) : 0;
+  if (count >= RATE_LIMIT_MAX_REQUESTS) {
+    return false;
+  }
+  await kv.put(key, String(count + 1), { expirationTtl: RATE_LIMIT_WINDOW_SECONDS });
+  return true;
 }
 
 export async function GET(request: Request) {
@@ -58,6 +85,14 @@ export async function GET(request: Request) {
   const offset = offsetParam ? Number(offsetParam) : 0;
   const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0;
 
+  // 入力の妥当性を確認した後にレート制限を消費する(不正な入力で枠を減らさない)
+  if (!(await checkSearchRateLimit(env.RATE_LIMIT, session.user.id))) {
+    return Response.json(
+      { error: "rate_limited", message: "検索の回数が多すぎます。少し時間をおいてお試しください。" },
+      { status: 429 },
+    );
+  }
+
   try {
     const candidates = await searchMal(mediaType, query, env.MAL_CLIENT_ID, safeOffset);
     // MALのレスポンスにもpaging.nextはあるが、URLをそのまま返すとClient IDを含む
@@ -72,6 +107,15 @@ export async function GET(request: Request) {
       return Response.json(
         { error: "rate_limited", message: "混み合っています。少し時間をおいてお試しください。" },
         { status: 429 },
+      );
+    }
+    // MAL側が入力を受け付けなかった場合。MAL_MIN_QUERY_LENGTHの推定が
+    // 実際の閾値と違っていてもここで拾えるため、ユーザーがリトライを
+    // 繰り返して詰むことがない
+    if (err instanceof MalBadRequestError) {
+      return Response.json(
+        { error: "invalid_query", message: "検索できませんでした。検索語を長くするか、別の語でお試しください。" },
+        { status: 422 },
       );
     }
     return Response.json(

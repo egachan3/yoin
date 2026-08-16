@@ -9,7 +9,9 @@ import {
   buildSourceUrl,
   displayTitle,
   computeDuration,
+  buildRawFields,
   MalRateLimitError,
+  MalBadRequestError,
   type MalCandidate,
 } from "./mal";
 
@@ -20,7 +22,7 @@ function animeCandidate(overrides: Partial<MalCandidate> = {}): MalCandidate {
     malId: 51009,
     title: "Jujutsu Kaisen 2nd Season",
     titleJa: "呪術廻戦 第2期",
-    mainPictureMedium: null,
+    mainPicture: null,
     startDate: "2023-07-06",
     numEpisodes: 23,
     averageEpisodeDurationSeconds: 1440,
@@ -37,7 +39,7 @@ function mangaCandidate(overrides: Partial<MalCandidate> = {}): MalCandidate {
     malId: 113138,
     title: "Jujutsu Kaisen",
     titleJa: "呪術廻戦",
-    mainPictureMedium: null,
+    mainPicture: null,
     startDate: "2018-03-05",
     numEpisodes: null,
     averageEpisodeDurationSeconds: null,
@@ -88,7 +90,7 @@ describe("searchAnime / searchManga", () => {
         malId: 51009,
         title: "Jujutsu Kaisen 2nd Season",
         titleJa: "呪術廻戦 第2期",
-        mainPictureMedium: "https://cdn.myanimelist.net/images/anime/medium.jpg",
+        mainPicture: "https://cdn.myanimelist.net/images/anime/large.jpg",
         startDate: "2023-07-06",
         numEpisodes: 23,
         averageEpisodeDurationSeconds: 1440,
@@ -180,7 +182,23 @@ describe("searchAnime / searchManga", () => {
 
     const results = await searchAnime("test", "dummy-client-id");
 
-    expect(results[0].mainPictureMedium).toBeNull();
+    expect(results[0].mainPicture).toBeNull();
+  });
+
+  it("画像はlargeを優先し、largeが無ければmediumにフォールバックする", async () => {
+    // 棚グリッドはRetinaで実効280px以上必要でmedium(幅200px前後)だとぼやける
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ node: { ...SAMPLE_ANIME_NODE, main_picture: { medium: "https://example.com/m.jpg" } } }],
+        }),
+      ),
+    );
+
+    const results = await searchAnime("test", "dummy-client-id");
+
+    expect(results[0].mainPicture).toBe("https://example.com/m.jpg");
   });
 
   it("放送中の作品(num_episodes=0)もパースでき、0のまま返す", async () => {
@@ -211,6 +229,23 @@ describe("レート制限の扱い", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 500 })));
 
     await expect(searchAnime("test", "dummy-client-id")).rejects.not.toBeInstanceOf(MalRateLimitError);
+  });
+
+  it("403のレスポンスボディを保持する(レート制限とClient ID無効の切り分けに要る)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response('{"error":"invalid_token"}', { status: 403 })),
+    );
+
+    await expect(searchAnime("test", "dummy-client-id")).rejects.toMatchObject({
+      body: '{"error":"invalid_token"}',
+    });
+  });
+
+  it("400はMalBadRequestErrorとして投げる(クエリ最小長の推定が外れた場合の受け皿)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("", { status: 400 })));
+
+    await expect(searchAnime("あ", "dummy-client-id")).rejects.toBeInstanceOf(MalBadRequestError);
   });
 });
 
@@ -276,6 +311,33 @@ describe("buildSourceId / buildSourceUrl / displayTitle", () => {
     expect(displayTitle({ title: "Jujutsu Kaisen", titleJa: null })).toBe("Jujutsu Kaisen");
     // 空白のみの日本語タイトルは実質ないものとして扱う
     expect(displayTitle({ title: "Jujutsu Kaisen", titleJa: "   " })).toBe("Jujutsu Kaisen");
+  });
+});
+
+describe("buildRawFields", () => {
+  it("保存するキーがホワイトリストと完全一致する(規約上NGなフィールドが混ざらない)", () => {
+    // spec 3.4: synopsis/mean/rank/popularityはUGCの集約であり永続化しない。
+    // spec 5.4「強制手段はコードレビュー運用に頼らない」ため、キー集合を固定して
+    // フィールドを足したときに必ずこのテストが落ちるようにする
+    expect(Object.keys(buildRawFields(animeCandidate())).sort()).toEqual(
+      [
+        "averageEpisodeDurationSeconds",
+        "mediaType",
+        "numChapters",
+        "numEpisodes",
+        "numVolumes",
+        "startDate",
+        "title",
+        "titleJa",
+      ].sort(),
+    );
+  });
+
+  it("APIの余計なフィールドが候補に紛れ込んでいてもraw_fieldsには出ない", () => {
+    const contaminated = { ...animeCandidate(), synopsis: "あらすじ本文", mean: 8.7 } as MalCandidate;
+
+    expect(JSON.stringify(buildRawFields(contaminated))).not.toContain("あらすじ本文");
+    expect(buildRawFields(contaminated)).not.toHaveProperty("mean");
   });
 });
 

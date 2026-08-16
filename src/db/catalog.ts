@@ -12,7 +12,12 @@ import type { ItunesCandidate } from "@/lib/sources/itunes";
 import type { TmdbCandidate } from "@/lib/sources/tmdb";
 import { buildImageUrl } from "@/lib/sources/tmdb";
 import type { MalCandidate } from "@/lib/sources/mal";
-import { buildSourceId as buildMalSourceId, buildSourceUrl as buildMalSourceUrl, displayTitle as malDisplayTitle } from "@/lib/sources/mal";
+import {
+  buildSourceId as buildMalSourceId,
+  buildSourceUrl as buildMalSourceUrl,
+  displayTitle as malDisplayTitle,
+  buildRawFields as buildMalRawFields,
+} from "@/lib/sources/mal";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -488,7 +493,7 @@ export async function findOrCreateAnimeMangaCatalogEntity(
       genre: "anime_manga",
       // 日本語タイトルがあれば優先する(spec 6章の日本市場向け差別化)
       title: malDisplayTitle(candidate),
-      primary_image_ref: candidate.mainPictureMedium,
+      primary_image_ref: candidate.mainPicture,
       owner_user_id: null,
       merged_into_id: null,
       created_at: now,
@@ -505,16 +510,9 @@ export async function findOrCreateAnimeMangaCatalogEntity(
       source_id: sourceId,
       // Section 3(e)の24時間削除義務・Section 18の監査権に備え、来歴URLを残す
       source_url: buildMalSourceUrl(candidate),
-      raw_fields: JSON.stringify({
-        title: candidate.title,
-        titleJa: candidate.titleJa,
-        mediaType: candidate.mediaType,
-        startDate: candidate.startDate,
-        numEpisodes: candidate.numEpisodes,
-        averageEpisodeDurationSeconds: candidate.averageEpisodeDurationSeconds,
-        numVolumes: candidate.numVolumes,
-        numChapters: candidate.numChapters,
-      }),
+      // 保存するフィールドの選定はmal.ts側のホワイトリストに集約している
+      // (spec 5.4「強制手段はコードレビュー運用に頼らない」。テストで守る)
+      raw_fields: JSON.stringify(buildMalRawFields(candidate)),
       deletion_status: "active",
       // MALには6ヶ月キャッシュ上限のような明示的な期限はないが、Section 3(e)の
       // 削除要請対応・Section 6の負荷配慮のため再取得基準として記録しておく

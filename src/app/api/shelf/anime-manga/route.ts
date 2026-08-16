@@ -73,13 +73,6 @@ export async function POST(request: Request) {
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
-  // 追加時のデフォルト状態はmediaTypeで分ける。既存ジャンルの決定
-  // (映画・ドラマ=completed「観た後に記録」、書籍=planned「積読」)を、
-  // 消費形態が近い方に合わせる: アニメは映像作品なのでcompleted、
-  // マンガは書籍と同じく未読の巻を積む文化があるためplanned。
-  // 同じタブ内で挙動が分かれるが、根拠は既存決定と同じ「主要動線がどちらか」
-  const status = candidate.mediaType === "anime" ? "completed" : "planned";
-
   try {
     await db
       .insertInto("shelf_entries")
@@ -88,7 +81,11 @@ export async function POST(request: Request) {
         user_id: session.user.id,
         catalog_id: catalogId,
         source_type: "manual_search",
-        status,
+        // アニメ・マンガのデフォルト状態はcompleted(spec セクション5の初期値テーブル。
+        // 「映画・ドラマ・アニメ・マンガ = completed」とマンガも含めて決定済み)。
+        // planned に倒すとcompleted_atがNULLになり、リキャップの推定消費時間
+        // (completed_at基準で期間を絞る)から永久に除外される
+        status: "completed",
         is_revisiting: 0,
         revisit_count: 0,
         comment: null,
@@ -98,7 +95,7 @@ export async function POST(request: Request) {
         raw_duration_value: duration.rawValue,
         raw_duration_unit: duration.rawUnit,
         added_at: now,
-        completed_at: status === "completed" ? now : null,
+        completed_at: now,
         created_at: now,
         updated_at: now,
       })

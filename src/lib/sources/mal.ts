@@ -24,7 +24,13 @@ export interface MalCandidate {
   title: string;
   /** 日本語タイトル。alternative_titles.ja が取れた場合のみ */
   titleJa: string | null;
-  mainPictureMedium: string | null;
+  /**
+   * 棚グリッドは幅140px超の枠にaspect-ratio 2/3で描画するため、Retinaでは
+   * 実効280px以上必要になる。MALのmediumは幅200px前後で拡大するとぼやけるため
+   * largeを優先する(TMDBがw500を選んでいるのと粒度を揃える)。
+   * Agreement Section 3(c)の保存禁止対象は個人情報とUGCで、画像は対象外(spec 3.4)
+   */
+  mainPicture: string | null;
   startDate: string | null;
   /** アニメのみ。放送中の作品では0になりうる(spec 10のNULL区別と同じ扱いが必要) */
   numEpisodes: number | null;
@@ -91,7 +97,7 @@ function toAnimeCandidate(node: z.infer<typeof AnimeNodeSchema>): MalCandidate {
     malId: node.id,
     title: node.title,
     titleJa: node.alternative_titles?.ja ?? null,
-    mainPictureMedium: node.main_picture?.medium ?? null,
+    mainPicture: node.main_picture?.large ?? node.main_picture?.medium ?? null,
     startDate: node.start_date ?? null,
     numEpisodes: node.num_episodes ?? null,
     averageEpisodeDurationSeconds: node.average_episode_duration ?? null,
@@ -107,7 +113,7 @@ function toMangaCandidate(node: z.infer<typeof MangaNodeSchema>): MalCandidate {
     malId: node.id,
     title: node.title,
     titleJa: node.alternative_titles?.ja ?? null,
-    mainPictureMedium: node.main_picture?.medium ?? null,
+    mainPicture: node.main_picture?.large ?? node.main_picture?.medium ?? null,
     startDate: node.start_date ?? null,
     numEpisodes: null,
     averageEpisodeDurationSeconds: null,
@@ -116,11 +122,29 @@ function toMangaCandidate(node: z.infer<typeof MangaNodeSchema>): MalCandidate {
   };
 }
 
-/** MALのレート制限超過を表す。MALは429ではなく403で返す(spec 3.4) */
+/**
+ * MALが403を返したことを表す。MALはレート制限を429ではなく403で返す(spec 3.4)。
+ *
+ * 【注意】403はレート制限とClient ID無効の**両方**で返る。両者はレスポンス
+ * ボディにしか差が出ないため、判別材料としてbodyを保持する。ユーザーへの
+ * 案内は同じ(時間をおいて再試行)でよいが、運用側では区別が必要:
+ * Client IDが失効・停止すると全ユーザーの全リクエストが恒久的に403になり、
+ * それを「混み合っています」とだけ表示していると障害に気づけない。
+ */
 export class MalRateLimitError extends Error {
-  constructor() {
-    super("MAL rate limit exceeded (403)");
+  readonly body: string;
+  constructor(body = "") {
+    super("MAL returned 403 (rate limit or invalid client id)");
     this.name = "MalRateLimitError";
+    this.body = body;
+  }
+}
+
+/** MALが400を返したことを表す(クエリが短すぎる等、入力起因の失敗) */
+export class MalBadRequestError extends Error {
+  constructor() {
+    super("MAL returned 400 (bad request)");
+    this.name = "MalBadRequestError";
   }
 }
 
@@ -134,22 +158,35 @@ async function malFetch(path: string, params: Record<string, string>, clientId: 
     signal: AbortSignal.timeout(8000),
   });
   if (res.status === 404) return null;
-  // MALはレート制限を403(ドキュメント上「DoS detected」)で返す。TMDBと同じく429を
-  // 見ていると取りこぼすため、403を専用のエラーとして区別する(spec 3.4)。
-  // なおClient IDが無効な場合も401/403になり得るが、どちらもユーザーには
-  // 「時間をおいて再試行」と案内するのが妥当なため呼び出し側では同じ扱いにする
   if (res.status === 403) {
-    throw new MalRateLimitError();
+    // ボディを捨てるとレート制限とClient ID無効を切り分ける材料が永久に失われる。
+    // 恒久障害(Client ID失効・MALによる停止)を検知できるよう必ずログに残す。
+    // Agreement Section 18の監査要件(API利用記録を残す)にも資する
+    const body = await res.text().catch(() => "");
+    console.error("[mal] 403を受信しました", { path, body: body.slice(0, 500) });
+    throw new MalRateLimitError(body);
+  }
+  if (res.status === 400) {
+    // 短すぎるクエリ等。汎用エラーに落とすと「検索に失敗しました」になり、
+    // ユーザーが何度リトライしても同じ結果になって詰む
+    throw new MalBadRequestError();
   }
   if (!res.ok) {
+    // 401(Client ID未設定・不正)もここに来る。403と同じく切り分け材料を残す
+    console.error("[mal] リクエストが失敗しました", { path, status: res.status });
     throw new Error(`MAL request failed: ${res.status}`);
   }
   return res.json();
 }
 
 /**
- * MALの検索は2文字以上を要求する(1文字だと400が返る)。
- * APIに投げる前に弾いて、無駄なリクエストとレート消費を避ける。
+ * APIに投げる前に弾く最小クエリ長。無駄なリクエストとレート消費を避ける。
+ *
+ * 【未検証】MALの公式ドキュメントに`q`の最小長の記載がなく、実際の閾値
+ * (1文字なのか2文字なのか3文字なのか)は未確認。ここでは保守的に2を置いている。
+ * 実データで確認できたら、確認日とともにこのコメントを更新すること。
+ * なお閾値の推定が外れてMAL側で400になった場合も、MalBadRequestErrorとして
+ * 「検索語が短い可能性」を伝えるメッセージに落ちるため、ユーザーが詰むことはない。
  */
 export const MAL_MIN_QUERY_LENGTH = 2;
 
@@ -237,6 +274,27 @@ export function buildSourceUrl(candidate: Pick<MalCandidate, "mediaType" | "malI
 /** 日本語タイトルがあればそれを優先する(日本市場向けの差別化。spec 6章) */
 export function displayTitle(candidate: Pick<MalCandidate, "title" | "titleJa">): string {
   return candidate.titleJa?.trim() || candidate.title;
+}
+
+/**
+ * source_records.raw_fieldsに保存する値を組み立てる。
+ *
+ * 「事実」フィールドのみを明示列挙するホワイトリスト(spec 3.4)。
+ * spec 5.4が「強制手段はコードレビュー運用に頼らない」と定めている箇所なので、
+ * catalog.ts側にインラインで書かずここに出してテストで守る。
+ * フィールドを足すときは必ずテストが落ちるため、規約上の可否を再考する契機になる。
+ */
+export function buildRawFields(candidate: MalCandidate): Record<string, unknown> {
+  return {
+    title: candidate.title,
+    titleJa: candidate.titleJa,
+    mediaType: candidate.mediaType,
+    startDate: candidate.startDate,
+    numEpisodes: candidate.numEpisodes,
+    averageEpisodeDurationSeconds: candidate.averageEpisodeDurationSeconds,
+    numVolumes: candidate.numVolumes,
+    numChapters: candidate.numChapters,
+  };
 }
 
 /** マンガ1巻あたりの読了時間(分)。spec 10の決定値(クラウドソース的な相場観に基づく) */
