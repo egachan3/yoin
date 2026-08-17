@@ -9,12 +9,37 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "yoin",
-	"main": ".open-next/worker.js",
+	// generated worker.jsのfetchハンドラに、TMDB再取得Cron用のscheduled/queue
+	// ハンドラを追加で載せたカスタムエントリ(custom-worker.ts参照)
+	// https://opennext.js.org/cloudflare/howtos/custom-worker
+	"main": "custom-worker.ts",
 	"compatibility_date": "2026-08-10",
 	"compatibility_flags": [
 		"nodejs_compat",
 		"global_fetch_strictly_public"
 	],
+	// TMDBの6ヶ月キャッシュ上限対応(定期再取得)。毎日04:00 UTCに実行し、
+	// 期限が来た作品をQueueへ送信する(実際の再取得はconsumer側)
+	// spec: shelf-type-app-spec.md セクション5「TMDBの6ヶ月キャッシュ上限への対応」
+	"triggers": {
+		"crons": ["0 4 * * *"]
+	},
+	"queues": {
+		"producers": [
+			{
+				"queue": "tmdb-refresh",
+				"binding": "TMDB_REFRESH_QUEUE"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "tmdb-refresh",
+				"max_batch_size": 10,
+				"max_batch_timeout": 30,
+				"max_retries": 3
+			}
+		]
+	},
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".open-next/assets"
