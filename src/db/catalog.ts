@@ -2,8 +2,8 @@
 // 参照: shelf-type-app-spec.md セクション5「catalog_entitiesと正規化レイヤーの関係」
 
 import { uuidv7 } from "uuidv7";
-import type { Kysely } from "kysely";
-import type { Database, CatalogSource, Genre } from "./schema";
+import type { Kysely, Insertable } from "kysely";
+import type { Database, CatalogSource, Genre, ShelfEntryTable } from "./schema";
 import type { NdlBookCandidate } from "@/lib/sources/ndl";
 import { fetchCoverByIsbn } from "@/lib/sources/google-books";
 import type { MusicCandidate } from "@/lib/sources/musicbrainz";
@@ -30,6 +30,30 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
+/**
+ * shelf_entriesの挿入値。catalog_idだけは呼び出し元(API route)が知らない
+ * (findOrCreate*が新規作成するかどうかで決まるため)ので除外している。
+ *
+ * 【原子化の設計】以前はfindOrCreate*CatalogEntity → 呼び出し側で別途
+ * shelf_entries INSERT、という2段階になっており、後者が失敗すると
+ * どのshelf_entriesからも参照されない孤立したcatalog_entities行が残った
+ * (レビュー指摘、全ジャンル共通)。catalog_entityを新規作成する場合は
+ * shelf_entriesの挿入もd1.batch()に含めて原子化する。既存catalog_entityを
+ * 再利用する場合は、shelf_entries挿入は単文のみなので原子性の懸念自体が生じない。
+ */
+export type ShelfEntryValuesWithoutCatalogId = Omit<Insertable<ShelfEntryTable>, "catalog_id">;
+
+function compileShelfEntryInsert(
+  db: Kysely<Database>,
+  catalogId: string,
+  values: ShelfEntryValuesWithoutCatalogId,
+) {
+  return db
+    .insertInto("shelf_entries")
+    .values({ ...values, catalog_id: catalogId })
+    .compile();
+}
+
 async function findExistingCatalogId(db: Kysely<Database>, ndlBibId: string): Promise<string | null> {
   const existing = await db
     .selectFrom("source_records")
@@ -53,18 +77,25 @@ export async function findOrCreateBookCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   candidate: NdlBookCandidate,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
   googleBooksApiKey?: string,
 ): Promise<string> {
   const existingId = await findExistingCatalogId(db, candidate.ndlBibId);
   if (existingId) {
+    // 既存カタログを再利用する場合、shelf_entriesの挿入は単文のみなので
+    // そのまま原子的(バッチにする必要がない)
+    await db
+      .insertInto("shelf_entries")
+      .values({ ...shelfEntryValues, catalog_id: existingId })
+      .execute();
     return existingId;
   }
 
   const catalogId = uuidv7();
   const now = nowSeconds();
 
-  // catalog_entities + source_records(ndl)の作成はD1のネイティブbatch()で
-  // 原子的に実行する(全部成功 or 全部失敗)。KyselyのdbTransaction()相当は
+  // catalog_entities + source_records(ndl) + shelf_entriesの作成はD1のネイティブ
+  // batch()で原子的に実行する(全部成功 or 全部失敗)。KyselyのdbTransaction()相当は
   // kysely-d1では実際には何もしないスタブ(D1自体がインタラクティブな
   // トランザクションを持たないため)であることをコードレビューで確認済み。
   // compile()でSQL+パラメータに変換し、D1本来のprepare().bind()に渡す。
@@ -104,18 +135,25 @@ export async function findOrCreateBookCatalogEntity(
     })
     .compile();
 
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
   try {
     await d1.batch([
       d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
       d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+      d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
     ]);
   } catch (err) {
     // UNIQUE(source, source_id)違反 = 他ユーザーがほぼ同時に同じ本を初めて
     // 追加した(レース条件)。孤児のcatalog_entities行を残さないよう、
-    // 勝者側が作成した既存行を再取得して返す
+    // 勝者側が作成した既存行を再取得し、今回のshelf_entryだけ単独で追加する
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingCatalogId(db, candidate.ndlBibId);
       if (raceWinnerId) {
+        await db
+          .insertInto("shelf_entries")
+          .values({ ...shelfEntryValues, catalog_id: raceWinnerId })
+          .execute();
         return raceWinnerId;
       }
     }
@@ -216,9 +254,14 @@ export async function findOrCreateMusicCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   candidate: MusicSourceCandidate,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
 ): Promise<string> {
   const existingId = await findExistingMusicCatalogId(db, candidate.source, candidate.sourceId);
   if (existingId) {
+    await db
+      .insertInto("shelf_entries")
+      .values({ ...shelfEntryValues, catalog_id: existingId })
+      .execute();
     return existingId;
   }
 
@@ -260,16 +303,23 @@ export async function findOrCreateMusicCatalogEntity(
     })
     .compile();
 
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
   try {
     await d1.batch([
       d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
       d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+      d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
     ]);
   } catch (err) {
     // UNIQUE(source, source_id)違反 = レース条件(findOrCreateBookCatalogEntityと同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingMusicCatalogId(db, candidate.source, candidate.sourceId);
       if (raceWinnerId) {
+        await db
+          .insertInto("shelf_entries")
+          .values({ ...shelfEntryValues, catalog_id: raceWinnerId })
+          .execute();
         return raceWinnerId;
       }
     }
@@ -385,10 +435,15 @@ export async function findOrCreateMovieCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   candidate: TmdbCandidate,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
 ): Promise<string> {
   const sourceId = `${candidate.mediaType}:${candidate.tmdbId}`;
   const existingId = await findExistingMovieCatalogId(db, sourceId);
   if (existingId) {
+    await db
+      .insertInto("shelf_entries")
+      .values({ ...shelfEntryValues, catalog_id: existingId })
+      .execute();
     return existingId;
   }
 
@@ -438,16 +493,23 @@ export async function findOrCreateMovieCatalogEntity(
     })
     .compile();
 
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
   try {
     await d1.batch([
       d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
       d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+      d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
     ]);
   } catch (err) {
     // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽と同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingMovieCatalogId(db, sourceId);
       if (raceWinnerId) {
+        await db
+          .insertInto("shelf_entries")
+          .values({ ...shelfEntryValues, catalog_id: raceWinnerId })
+          .execute();
         return raceWinnerId;
       }
     }
@@ -483,10 +545,15 @@ export async function findOrCreateAnimeMangaCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   candidate: MalCandidate,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
 ): Promise<string> {
   const sourceId = buildMalSourceId(candidate);
   const existingId = await findExistingAnimeMangaCatalogId(db, sourceId);
   if (existingId) {
+    await db
+      .insertInto("shelf_entries")
+      .values({ ...shelfEntryValues, catalog_id: existingId })
+      .execute();
     return existingId;
   }
 
@@ -530,16 +597,23 @@ export async function findOrCreateAnimeMangaCatalogEntity(
     })
     .compile();
 
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
   try {
     await d1.batch([
       d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
       d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+      d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
     ]);
   } catch (err) {
     // UNIQUE(source, source_id)違反 = レース条件(書籍/音楽/映画と同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingAnimeMangaCatalogId(db, sourceId);
       if (raceWinnerId) {
+        await db
+          .insertInto("shelf_entries")
+          .values({ ...shelfEntryValues, catalog_id: raceWinnerId })
+          .execute();
         return raceWinnerId;
       }
     }
@@ -573,10 +647,15 @@ export async function findOrCreateGameCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   candidate: IgdbCandidate,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
 ): Promise<string> {
   const sourceId = String(candidate.igdbId);
   const existingId = await findExistingGameCatalogId(db, sourceId);
   if (existingId) {
+    await db
+      .insertInto("shelf_entries")
+      .values({ ...shelfEntryValues, catalog_id: existingId })
+      .execute();
     return existingId;
   }
 
@@ -619,16 +698,23 @@ export async function findOrCreateGameCatalogEntity(
     })
     .compile();
 
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
   try {
     await d1.batch([
       d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
       d1.prepare(insertSourceRecord.sql).bind(...insertSourceRecord.parameters),
+      d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
     ]);
   } catch (err) {
     // UNIQUE(source, source_id)違反 = レース条件(他ジャンルと同じ扱い)
     if (err instanceof Error && /UNIQUE constraint failed:.*source_records/i.test(err.message)) {
       const raceWinnerId = await findExistingGameCatalogId(db, sourceId);
       if (raceWinnerId) {
+        await db
+          .insertInto("shelf_entries")
+          .values({ ...shelfEntryValues, catalog_id: raceWinnerId })
+          .execute();
         return raceWinnerId;
       }
     }
@@ -661,12 +747,17 @@ export interface ManualCatalogEntityInput {
  */
 export async function createManualCatalogEntity(
   db: Kysely<Database>,
+  d1: D1Database,
   input: ManualCatalogEntityInput,
+  shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
 ): Promise<string> {
   const catalogId = uuidv7();
   const now = nowSeconds();
 
-  await db
+  // 手動入力は常に新規作成なので、findOrCreate*系のような既存行再利用・
+  // レース条件処理は不要。catalog_entities + shelf_entriesの2文を
+  // d1.batch()で原子的に実行するだけでよい
+  const insertCatalogEntity = db
     .insertInto("catalog_entities")
     .values({
       id: catalogId,
@@ -678,7 +769,14 @@ export async function createManualCatalogEntity(
       created_at: now,
       updated_at: now,
     })
-    .execute();
+    .compile();
+
+  const insertShelfEntry = compileShelfEntryInsert(db, catalogId, shelfEntryValues);
+
+  await d1.batch([
+    d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
+    d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
+  ]);
 
   return catalogId;
 }

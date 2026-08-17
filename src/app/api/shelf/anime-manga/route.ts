@@ -85,47 +85,34 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  let catalogId: string;
-  try {
-    catalogId = await findOrCreateAnimeMangaCatalogEntity(db, env.DB, candidate);
-  } catch {
-    return Response.json(
-      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
-      { status: 502 },
-    );
-  }
-
   const duration = computeDuration(candidate);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
+  let catalogId: string;
   try {
-    await db
-      .insertInto("shelf_entries")
-      .values({
-        id: entryId,
-        user_id: session.user.id,
-        catalog_id: catalogId,
-        source_type: "manual_search",
-        // アニメ・マンガのデフォルト状態はcompleted(spec セクション5の初期値テーブル。
-        // 「映画・ドラマ・アニメ・マンガ = completed」とマンガも含めて決定済み)。
-        // planned に倒すとcompleted_atがNULLになり、リキャップの推定消費時間
-        // (completed_at基準で期間を絞る)から永久に除外される
-        status: "completed",
-        is_revisiting: 0,
-        revisit_count: 0,
-        comment: null,
-        rating: null,
-        estimated_duration_seconds: duration.estimatedSeconds,
-        duration_pending: duration.pending,
-        raw_duration_value: duration.rawValue,
-        raw_duration_unit: duration.rawUnit,
-        added_at: now,
-        completed_at: now,
-        created_at: now,
-        updated_at: now,
-      })
-      .execute();
+    catalogId = await findOrCreateAnimeMangaCatalogEntity(db, env.DB, candidate, {
+      id: entryId,
+      user_id: session.user.id,
+      source_type: "manual_search",
+      // アニメ・マンガのデフォルト状態はcompleted(spec セクション5の初期値テーブル。
+      // 「映画・ドラマ・アニメ・マンガ = completed」とマンガも含めて決定済み)。
+      // planned に倒すとcompleted_atがNULLになり、リキャップの推定消費時間
+      // (completed_at基準で期間を絞る)から永久に除外される
+      status: "completed",
+      is_revisiting: 0,
+      revisit_count: 0,
+      comment: null,
+      rating: null,
+      estimated_duration_seconds: duration.estimatedSeconds,
+      duration_pending: duration.pending,
+      raw_duration_value: duration.rawValue,
+      raw_duration_unit: duration.rawUnit,
+      added_at: now,
+      completed_at: now,
+      created_at: now,
+      updated_at: now,
+    });
   } catch {
     return Response.json(
       { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },

@@ -82,45 +82,32 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  let catalogId: string;
-  try {
-    catalogId = await findOrCreateGameCatalogEntity(db, env.DB, candidate);
-  } catch {
-    return Response.json(
-      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
-      { status: 502 },
-    );
-  }
-
   const duration = computeDuration(candidate);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
+  let catalogId: string;
   try {
-    await db
-      .insertInto("shelf_entries")
-      .values({
-        id: entryId,
-        user_id: session.user.id,
-        catalog_id: catalogId,
-        source_type: "manual_search",
-        // ゲームのデフォルト状態はplanned(spec セクション5の初期値テーブル。
-        // 書籍と同じく「積んでいる」時点での追加が主要動線という判断)
-        status: "planned",
-        is_revisiting: 0,
-        revisit_count: 0,
-        comment: null,
-        rating: null,
-        estimated_duration_seconds: duration.estimatedSeconds,
-        duration_pending: duration.pending,
-        raw_duration_value: duration.rawValue,
-        raw_duration_unit: duration.rawUnit,
-        added_at: now,
-        completed_at: null,
-        created_at: now,
-        updated_at: now,
-      })
-      .execute();
+    catalogId = await findOrCreateGameCatalogEntity(db, env.DB, candidate, {
+      id: entryId,
+      user_id: session.user.id,
+      source_type: "manual_search",
+      // ゲームのデフォルト状態はplanned(spec セクション5の初期値テーブル。
+      // 書籍と同じく「積んでいる」時点での追加が主要動線という判断)
+      status: "planned",
+      is_revisiting: 0,
+      revisit_count: 0,
+      comment: null,
+      rating: null,
+      estimated_duration_seconds: duration.estimatedSeconds,
+      duration_pending: duration.pending,
+      raw_duration_value: duration.rawValue,
+      raw_duration_unit: duration.rawUnit,
+      added_at: now,
+      completed_at: null,
+      created_at: now,
+      updated_at: now,
+    });
   } catch {
     return Response.json(
       { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },

@@ -88,45 +88,32 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  let catalogId: string;
-  try {
-    catalogId = await findOrCreateMovieCatalogEntity(db, env.DB, candidate);
-  } catch {
-    return Response.json(
-      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
-      { status: 502 },
-    );
-  }
-
   const duration = computeDuration(candidate);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
+  let catalogId: string;
   try {
-    await db
-      .insertInto("shelf_entries")
-      .values({
-        id: entryId,
-        user_id: session.user.id,
-        catalog_id: catalogId,
-        source_type: "manual_search",
-        // 映画・ドラマの追加時デフォルト状態はcompleted(spec決定: 「観た後に記録」が
-        // 主要動線のため。書籍・ゲームのplannedとは異なる)
-        status: "completed",
-        is_revisiting: 0,
-        revisit_count: 0,
-        comment: null,
-        rating: null,
-        estimated_duration_seconds: duration.estimatedSeconds,
-        duration_pending: duration.pending,
-        raw_duration_value: duration.rawValue,
-        raw_duration_unit: duration.rawUnit,
-        added_at: now,
-        completed_at: now,
-        created_at: now,
-        updated_at: now,
-      })
-      .execute();
+    catalogId = await findOrCreateMovieCatalogEntity(db, env.DB, candidate, {
+      id: entryId,
+      user_id: session.user.id,
+      source_type: "manual_search",
+      // 映画・ドラマの追加時デフォルト状態はcompleted(spec決定: 「観た後に記録」が
+      // 主要動線のため。書籍・ゲームのplannedとは異なる)
+      status: "completed",
+      is_revisiting: 0,
+      revisit_count: 0,
+      comment: null,
+      rating: null,
+      estimated_duration_seconds: duration.estimatedSeconds,
+      duration_pending: duration.pending,
+      raw_duration_value: duration.rawValue,
+      raw_duration_unit: duration.rawUnit,
+      added_at: now,
+      completed_at: now,
+      created_at: now,
+      updated_at: now,
+    });
   } catch {
     return Response.json(
       { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
