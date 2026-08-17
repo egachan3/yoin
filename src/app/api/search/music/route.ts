@@ -1,12 +1,49 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
-import { searchRecordings, searchReleaseGroups } from "@/lib/sources/musicbrainz";
-import { searchItunes } from "@/lib/sources/itunes";
+import {
+  searchRecordings,
+  searchReleaseGroups,
+  fetchCoverArtByRelease,
+  fetchCoverArtByReleaseGroup,
+  type MusicCandidate,
+} from "@/lib/sources/musicbrainz";
+import { searchItunes, type ItunesCandidate } from "@/lib/sources/itunes";
 
 type Entity = "song" | "album";
 
 function parseEntity(value: string | null): Entity {
   return value === "album" ? "album" : "song";
+}
+
+/**
+ * 検索結果一覧に小さいジャケット画像を出すため、MusicBrainz由来の候補each件に
+ * Cover Art Archiveのジャケットを並列で問い合わせる。CAAはMusicBrainz本体と異なり
+ * レート制限がない(spec 3.2参照)ため、最大10件の並列取得を許容する。
+ * 1件でも取得失敗した場合はその候補だけimageUrl: nullにし、検索結果全体は失敗させない。
+ *
+ * iTunes由来の候補には画像を一切付けない(Promo Content規約上アートワーク不使用の
+ * 決定に従う。ItunesCandidateの型自体がアートワークを持てない設計と対になる)。
+ */
+async function attachCoverArt(candidates: MusicCandidate[]): Promise<(MusicCandidate & { imageUrl: string | null })[]> {
+  return Promise.all(
+    candidates.map(async (c) => {
+      try {
+        const imageUrl =
+          c.entityType === "release-group"
+            ? await fetchCoverArtByReleaseGroup(c.sourceId)
+            : c.releaseIdForCoverArt
+              ? await fetchCoverArtByRelease(c.releaseIdForCoverArt)
+              : null;
+        return { ...c, imageUrl };
+      } catch {
+        return { ...c, imageUrl: null };
+      }
+    }),
+  );
+}
+
+function attachNullImage(candidates: ItunesCandidate[]): (ItunesCandidate & { imageUrl: null })[] {
+  return candidates.map((c) => ({ ...c, imageUrl: null }));
 }
 
 export async function GET(request: Request) {
@@ -41,11 +78,12 @@ export async function GET(request: Request) {
       const itunesCandidates = await searchItunes(query, entity, 10);
       if (itunesCandidates.length > 0) {
         // iTunesは公式にoffsetページングをサポートしないため「もっと探す」は出さない
-        return Response.json({ candidates: itunesCandidates, nextOffset: null, source: "itunes" });
+        return Response.json({ candidates: attachNullImage(itunesCandidates), nextOffset: null, source: "itunes" });
       }
     }
 
-    return Response.json({ candidates: primary.candidates, nextOffset: primary.nextOffset, source: "musicbrainz" });
+    const candidatesWithImage = await attachCoverArt(primary.candidates);
+    return Response.json({ candidates: candidatesWithImage, nextOffset: primary.nextOffset, source: "musicbrainz" });
   } catch {
     return Response.json(
       { error: "search_failed", message: "検索に失敗しました。もう一度お試しください。" },

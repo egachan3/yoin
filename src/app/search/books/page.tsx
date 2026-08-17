@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 
 interface BookCandidate {
 	ndlBibId: string;
@@ -11,6 +12,9 @@ interface BookCandidate {
 	publisher: string | null;
 	isbn: string | null;
 	extentRaw: string | null;
+	// サーバー側で上位5件のみ取得する(Google Books APIの無料枠が1日1,000件と
+	// 少ないため)。6件目以降は常にnull
+	imageUrl: string | null;
 }
 
 interface SearchResponse {
@@ -122,22 +126,25 @@ export default function BookSearchPage() {
 
 			<div style={{ display: "grid", gap: "var(--space-3)" }}>
 				{candidates.map((c) => (
-					<div key={c.ndlBibId} className="card">
-						<p className="card-title">{c.title}</p>
-						<p className="card-meta">
-							{c.creator ?? "著者不明"} {c.publisher ? `／ ${c.publisher}` : ""}
-						</p>
-						<button
-							type="button"
-							className="btn btn-secondary"
-							onClick={() => handleAdd(c)}
-							disabled={addingId === c.ndlBibId}
-						>
-							{addingId === c.ndlBibId ? "追加中…" : "棚に追加"}
-						</button>
-						{addError?.ndlBibId === c.ndlBibId && (
-							<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
-						)}
+					<div key={c.ndlBibId} className="card" style={{ flexDirection: "row" }}>
+						<SearchResultThumbnail src={c.imageUrl} alt={c.title} />
+						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
+							<p className="card-title">{c.title}</p>
+							<p className="card-meta">
+								{c.creator ?? "著者不明"} {c.publisher ? `／ ${c.publisher}` : ""}
+							</p>
+							<button
+								type="button"
+								className="btn btn-secondary"
+								onClick={() => handleAdd(c)}
+								disabled={addingId === c.ndlBibId}
+							>
+								{addingId === c.ndlBibId ? "追加中…" : "棚に追加"}
+							</button>
+							{addError?.ndlBibId === c.ndlBibId && (
+								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+							)}
+						</div>
 					</div>
 				))}
 			</div>
