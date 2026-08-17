@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 
 type MediaType = "anime" | "manga";
 
@@ -11,6 +12,7 @@ interface MalCandidate {
 	malId: number;
 	title: string;
 	titleJa: string | null;
+	mainPicture: string | null;
 	startDate: string | null;
 	numEpisodes: number | null;
 	numVolumes: number | null;
@@ -210,20 +212,23 @@ export default function AnimeMangaSearchPage() {
 				{candidates.map((c) => {
 					const key = candidateKey(c);
 					return (
-						<div key={key} className="card">
-							<p className="card-title">{c.titleJa?.trim() || c.title}</p>
-							<p className="card-meta">{subtitle(c) || "情報なし"}</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingKey === key}
-							>
-								{addingKey === key ? "追加中…" : "棚に追加"}
-							</button>
-							{addError?.key === key && (
-								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
-							)}
+						<div key={key} className="card" style={{ flexDirection: "row" }}>
+							<SearchResultThumbnail src={c.mainPicture} alt={c.titleJa?.trim() || c.title} />
+							<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
+								<p className="card-title">{c.titleJa?.trim() || c.title}</p>
+								<p className="card-meta">{subtitle(c) || "情報なし"}</p>
+								<button
+									type="button"
+									className="btn btn-secondary"
+									onClick={() => handleAdd(c)}
+									disabled={addingKey === key}
+								>
+									{addingKey === key ? "追加中…" : "棚に追加"}
+								</button>
+								{addError?.key === key && (
+									<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+								)}
+							</div>
 						</div>
 					);
 				})}

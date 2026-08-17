@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
+import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { buildImageUrl } from "@/lib/sources/tmdb";
 
 interface MovieCandidate {
 	mediaType: "movie" | "tv";
@@ -98,22 +100,25 @@ export default function MovieSearchPage() {
 				{candidates.map((c) => {
 					const key = candidateKey(c);
 					return (
-						<div key={key} className="card">
-							<p className="card-title">
-								{c.title} <span className="card-meta">{MEDIA_TYPE_LABEL[c.mediaType]}</span>
-							</p>
-							<p className="card-meta">{c.releaseDate ?? "公開日不明"}</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingId === key}
-							>
-								{addingId === key ? "追加中…" : "棚に追加"}
-							</button>
-							{addError?.key === key && (
-								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
-							)}
+						<div key={key} className="card" style={{ flexDirection: "row" }}>
+							<SearchResultThumbnail src={c.posterPath ? buildImageUrl(c.posterPath) : null} alt={c.title} />
+							<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
+								<p className="card-title">
+									{c.title} <span className="card-meta">{MEDIA_TYPE_LABEL[c.mediaType]}</span>
+								</p>
+								<p className="card-meta">{c.releaseDate ?? "公開日不明"}</p>
+								<button
+									type="button"
+									className="btn btn-secondary"
+									onClick={() => handleAdd(c)}
+									disabled={addingId === key}
+								>
+									{addingId === key ? "追加中…" : "棚に追加"}
+								</button>
+								{addError?.key === key && (
+									<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+								)}
+							</div>
 						</div>
 					);
 				})}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 
 type Entity = "song" | "album";
 
@@ -12,6 +13,7 @@ interface MusicCandidate {
 	title: string;
 	artist: string | null;
 	lengthMs: number | null;
+	imageUrl: string | null;
 }
 
 interface SearchResponse {
@@ -141,20 +143,23 @@ export default function MusicSearchPage() {
 
 			<div style={{ display: "grid", gap: "var(--space-3)" }}>
 				{candidates.map((c) => (
-					<div key={c.sourceId} className="card">
-						<p className="card-title">{c.title}</p>
-						<p className="card-meta">{c.artist ?? "アーティスト不明"}</p>
-						<button
-							type="button"
-							className="btn btn-secondary"
-							onClick={() => handleAdd(c)}
-							disabled={addingId === c.sourceId}
-						>
-							{addingId === c.sourceId ? "追加中…" : "棚に追加"}
-						</button>
-						{addError?.sourceId === c.sourceId && (
-							<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
-						)}
+					<div key={c.sourceId} className="card" style={{ flexDirection: "row" }}>
+						<SearchResultThumbnail src={c.imageUrl} alt={c.title} aspectRatio="1 / 1" />
+						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
+							<p className="card-title">{c.title}</p>
+							<p className="card-meta">{c.artist ?? "アーティスト不明"}</p>
+							<button
+								type="button"
+								className="btn btn-secondary"
+								onClick={() => handleAdd(c)}
+								disabled={addingId === c.sourceId}
+							>
+								{addingId === c.sourceId ? "追加中…" : "棚に追加"}
+							</button>
+							{addError?.sourceId === c.sourceId && (
+								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
+							)}
+						</div>
 					</div>
 				))}
 			</div>
