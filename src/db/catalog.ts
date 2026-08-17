@@ -23,6 +23,7 @@ import {
   buildImageUrl as buildIgdbImageUrl,
   buildRawFields as buildIgdbRawFields,
   buildSourceUrl as buildIgdbSourceUrl,
+  displayTitle as igdbDisplayTitle,
 } from "@/lib/sources/igdb";
 import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 
@@ -668,7 +669,8 @@ export async function findOrCreateGameCatalogEntity(
     .values({
       id: catalogId,
       genre: "game",
-      title: candidate.title,
+      // 日本語タイトルがあれば優先する(spec 6章の日本市場向け差別化。アニメ・マンガと同じ)
+      title: igdbDisplayTitle(candidate),
       primary_image_ref: imageUrl,
       owner_user_id: null,
       merged_into_id: null,

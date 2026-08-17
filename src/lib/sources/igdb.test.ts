@@ -6,6 +6,7 @@ import {
   buildImageUrl,
   buildSourceUrl,
   buildRawFields,
+  displayTitle,
   computeDuration,
   IgdbUnauthorizedError,
   IgdbRateLimitError,
@@ -35,6 +36,7 @@ function gameCandidate(overrides: Partial<IgdbCandidate> = {}): IgdbCandidate {
     source: "igdb",
     igdbId: 1942,
     title: "The Witcher 3: Wild Hunt",
+    titleJa: null,
     coverImageId: "co1wyy",
     releaseDate: "2015-05-18",
     platforms: ["PC", "PlayStation 4"],
@@ -139,6 +141,7 @@ describe("searchGames", () => {
         source: "igdb",
         igdbId: 1942,
         title: "The Witcher 3: Wild Hunt",
+        titleJa: null,
         coverImageId: "co1wyy",
         releaseDate: "2015-05-18",
         platforms: ["PC", "PlayStation 4"],
@@ -344,8 +347,140 @@ describe("buildSourceUrl", () => {
 describe("buildRawFields", () => {
   it("保存するキーがホワイトリストと完全一致する", () => {
     expect(Object.keys(buildRawFields(gameCandidate())).sort()).toEqual(
-      ["platforms", "releaseDate", "slug", "timeToBeatNormallySeconds", "title"].sort(),
+      ["platforms", "releaseDate", "slug", "timeToBeatNormallySeconds", "title", "titleJa"].sort(),
     );
+  });
+});
+
+describe("displayTitle", () => {
+  it("titleJaがあればそれを優先する", () => {
+    expect(displayTitle(gameCandidate({ title: "Elden Ring", titleJa: "エルデンリング" }))).toBe("エルデンリング");
+  });
+
+  it("titleJaがなければ元のtitleを使う", () => {
+    expect(displayTitle(gameCandidate({ title: "Elden Ring", titleJa: null }))).toBe("Elden Ring");
+  });
+});
+
+describe("日本語タイトルの選定(alternative_namesから)", () => {
+  it("commentに'Japanese'を含み、実際に日本語文字を含む別名を採用する", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse([
+          {
+            ...SAMPLE_GAME,
+            alternative_names: [
+              { name: "The Witcher 3: Wild Hunt", comment: "Full title" },
+              { name: "ウィッチャー3 ワイルドハント", comment: "Japanese title" },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBe("ウィッチャー3 ワイルドハント");
+  });
+
+  it("commentに'Japanese'を含んでいても、日本語文字を含まないローマ字表記は採用しない(Japanese title - romanization対策)", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse([
+          {
+            ...SAMPLE_GAME,
+            alternative_names: [{ name: "Witcher 3 Wairudo Hanto", comment: "Japanese title - romanization" }],
+          },
+        ]),
+      ),
+    );
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBeNull();
+  });
+
+  it("alternative_namesが無ければtitleJaはnull", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(jsonResponse([{ ...SAMPLE_GAME, alternative_names: null }])));
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBeNull();
+  });
+
+  it("日本語候補が複数ある場合、commentが'Japanese title'に完全一致するものを優先する(配列順に依存しない)", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse([
+          {
+            ...SAMPLE_GAME,
+            alternative_names: [
+              // 配列の先頭は略称。完全一致する正式タイトルの方を優先すべき
+              { name: "ウィッチャー3", comment: "Japanese title - abbreviation" },
+              { name: "ウィッチャー3 ワイルドハント", comment: "Japanese title" },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBe("ウィッチャー3 ワイルドハント");
+  });
+
+  it("完全一致するcommentが無ければ配列順で先頭の日本語候補を採用する", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse([
+          {
+            ...SAMPLE_GAME,
+            alternative_names: [
+              { name: "ウィッチャー3", comment: "Japanese title - abbreviation" },
+              { name: "ウィッチャー3 完全版", comment: "Japanese title - alternate" },
+            ],
+          },
+        ]),
+      ),
+    );
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBe("ウィッチャー3");
+  });
+
+  it("Japaneseと無関係な別名(略称等)は採用しない", async () => {
+    const { kv, store } = createKvStub();
+    store.set("igdb:access_token", "tok");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        jsonResponse([
+          {
+            ...SAMPLE_GAME,
+            alternative_names: [{ name: "ウィッチャー3", comment: "Common abbreviation" }],
+          },
+        ]),
+      ),
+    );
+
+    const results = await searchGames("witcher", kv, "client-id", "client-secret");
+
+    expect(results[0].titleJa).toBeNull();
   });
 });
 
