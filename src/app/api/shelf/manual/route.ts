@@ -38,31 +38,23 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  let catalogId: string;
-  try {
-    catalogId = await createManualCatalogEntity(db, {
-      genre: parsed.data.genre,
-      title: parsed.data.title,
-      ownerUserId: session.user.id,
-    });
-  } catch {
-    return Response.json(
-      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
-      { status: 502 },
-    );
-  }
-
   const completed = isCompletedStatus(parsed.data.status);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
+  let catalogId: string;
   try {
-    await db
-      .insertInto("shelf_entries")
-      .values({
+    catalogId = await createManualCatalogEntity(
+      db,
+      env.DB,
+      {
+        genre: parsed.data.genre,
+        title: parsed.data.title,
+        ownerUserId: session.user.id,
+      },
+      {
         id: entryId,
         user_id: session.user.id,
-        catalog_id: catalogId,
         source_type: "manual_entry",
         status: parsed.data.status,
         is_revisiting: 0,
@@ -82,8 +74,8 @@ export async function POST(request: Request) {
         completed_at: completed ? dateSeconds : null,
         created_at: now,
         updated_at: now,
-      })
-      .execute();
+      },
+    );
   } catch {
     return Response.json(
       { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },

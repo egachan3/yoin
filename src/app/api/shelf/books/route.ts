@@ -55,28 +55,23 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  let catalogId: string;
-  try {
-    catalogId = await findOrCreateBookCatalogEntity(db, env.DB, candidate, env.GOOGLE_BOOKS_API_KEY);
-  } catch {
-    return Response.json(
-      { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
-      { status: 502 },
-    );
-  }
-
   const pageCount = parsePageCount(candidate.extentRaw);
   const estimatedSeconds = estimateReadingSeconds(pageCount);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
+  // catalog_entity作成(または既存再利用)とshelf_entriesの挿入を
+  // findOrCreateBookCatalogEntity内で原子的に行う(レビュー指摘:
+  // 以前は2段階に分かれており、後者の失敗でcatalog_entitiesが孤立行として残った)
+  let catalogId: string;
   try {
-    await db
-      .insertInto("shelf_entries")
-      .values({
+    catalogId = await findOrCreateBookCatalogEntity(
+      db,
+      env.DB,
+      candidate,
+      {
         id: entryId,
         user_id: session.user.id,
-        catalog_id: catalogId,
         source_type: "manual_search",
         // 書籍のデフォルト状態はplanned(積読文化との整合、セクション5参照)
         status: "planned",
@@ -95,8 +90,9 @@ export async function POST(request: Request) {
         completed_at: null,
         created_at: now,
         updated_at: now,
-      })
-      .execute();
+      },
+      env.GOOGLE_BOOKS_API_KEY,
+    );
   } catch {
     return Response.json(
       { error: "add_failed", message: "追加に失敗しました。もう一度お試しください。" },
