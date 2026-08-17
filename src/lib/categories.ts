@@ -64,11 +64,14 @@ export const SUBTYPE_SEARCH_PATH: Record<Subtype, string> = {
   game: "/search/game",
 };
 
-/** 音楽・映像・アニメの画像比率。アルバムジャケットは正方形が通例 */
+/** アルバムと曲だけ正方形(ジャケットの通例)、他は2:3(書影・ポスターの通例) */
 export function aspectRatioFor(subtype: Subtype): string {
   return subtype === "album" || subtype === "song" ? "1 / 1" : "2 / 3";
 }
 
 export function isSubtype(value: unknown): value is Subtype {
-  return typeof value === "string" && value in SUBTYPE_LABELS;
+  // `value in SUBTYPE_LABELS`だとプロトタイプチェーンまで見るため、
+  // "constructor"や"toString"がsubtypeとして通ってしまう。
+  // カテゴリ定義の情報源をSUBTYPE_ORDERに一本化する意味でも、こちらで判定する
+  return typeof value === "string" && (SUBTYPE_ORDER as readonly string[]).includes(value);
 }

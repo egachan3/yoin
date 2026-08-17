@@ -1,31 +1,15 @@
-// 手動入力フォールバック機能の共通定義(ジャンル・状態のラベル、プレースホルダー画像の割り当て)。
+// 手動入力フォールバック機能の共通定義(プレースホルダー画像の割り当て、日付のパース)。
 // クライアント(フォーム)・サーバー(APIルート)の両方から参照するため、
 // Cloudflare/Node固有のimportを持たない純粋なモジュールにする。
 // 参照: shelf-type-app-spec.md セクション5.4「検索結果0件時のフォールバックUI」
+//
+// 【削除した定義について】
+// GENRE_LABELS・STATUS_LABELS・isCompletedStatus は参照がなくなったため削除した。
+// ジャンルのラベルは8カテゴリのSUBTYPE_LABELS(src/lib/categories.ts)に置き換わり、
+// ステータス(予定/進行中/完了/保留/中断)はUIごと廃止された(引き継ぎ.md 3.5節)。
+// DBのstatus列自体は将来の復活に備えて残してある。
 
-import type { Genre, ShelfEntryStatus } from "@/db/schema";
-
-export const GENRE_LABELS: Record<Genre, string> = {
-  book: "書籍",
-  music: "音楽",
-  movie_tv: "映画・ドラマ",
-  anime_manga: "アニメ・マンガ",
-  game: "ゲーム",
-};
-
-export const STATUS_LABELS: Record<ShelfEntryStatus, string> = {
-  planned: "積読",
-  in_progress: "進行中",
-  completed: "読了",
-  on_hold: "中断中",
-  dropped: "断念",
-};
-
-// 「完了」を意味する状態のときのみ、ユーザーが指定した日付をcompleted_atにも入れる
-// (他ジャンルの「status: completedならcompleted_atを設定する」という既存パターンを踏襲)
-export function isCompletedStatus(status: ShelfEntryStatus): boolean {
-  return status === "completed";
-}
+import type { Genre } from "@/db/schema";
 
 // 5分類×1種の静的プレースホルダー画像(public/placeholders/配下の固定アセット)。
 // ユーザーアップロード・画像検索・外部URLはいずれも使わない(spec: モデレーション義務を避けるため)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseManualDate, isCompletedStatus } from "./manual-entry";
+import { parseManualDate } from "./manual-entry";
 
 describe("parseManualDate", () => {
   it("正しい日付をUNIX秒(UTC深夜0時)に変換する", () => {
@@ -28,15 +28,5 @@ describe("parseManualDate", () => {
     ["not-a-date", "数値でない"],
   ])("%s (%s) はnullを返す", (input) => {
     expect(parseManualDate(input)).toBeNull();
-  });
-});
-
-describe("isCompletedStatus", () => {
-  it("completedのみtrueを返す", () => {
-    expect(isCompletedStatus("completed")).toBe(true);
-    expect(isCompletedStatus("planned")).toBe(false);
-    expect(isCompletedStatus("in_progress")).toBe(false);
-    expect(isCompletedStatus("on_hold")).toBe(false);
-    expect(isCompletedStatus("dropped")).toBe(false);
   });
 });

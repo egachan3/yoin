@@ -9,13 +9,14 @@
 -- 表示のために内部の保存形式へ依存するのは筋が悪い。加えて手動入力エントリは
 -- source_records自体を持たない(src/app/api/shelf/manual/route.ts)ため、
 -- 都度導出では永久に分類できない。
-
--- 開発中のため既存データは作り直す方針(ユーザー合意済み)。
--- 子テーブルから先に消してFK違反を避ける。userテーブルには触れない
--- (アカウントとハンドルは残すため、ログインし直しは不要)。
-DELETE FROM shelf_entries;
-DELETE FROM source_records;
-DELETE FROM catalog_entities;
+--
+-- 【既存データの削除はここでは行わない】
+-- 開発中のため既存の棚エントリ・カタログは作り直す方針だが(ユーザー合意済み)、
+-- その削除はマイグレーションに含めず、1回限りの手動コマンドとして実行する。
+-- マイグレーションに書くと、バックアップから復元したDBや将来の別環境に対して
+-- `d1 migrations apply`を走らせるたびに無条件の全削除が再発するため。
+-- 今回の合意は「今の開発用データを捨てる」であって「以後どの環境でも捨てる」ではない。
+-- 実行するコマンドは引き継ぎ.md 3.5節に記載。
 
 -- 【なぜNOT NULLにしないのか】
 -- SQLiteは「NOT NULL列を後から追加するときデフォルト値が必須」という制約を持つ。
@@ -25,8 +26,3 @@ DELETE FROM catalog_entities;
 -- 渡し忘れはビルド時に止める。
 -- 取りうる値: 'book' | 'album' | 'song' | 'movie' | 'tv' | 'anime' | 'manga' | 'game'
 ALTER TABLE catalog_entities ADD COLUMN subtype TEXT;
-
--- 棚トップは「カテゴリごとの件数と代表画像」を出すため、subtype単位の絞り込みが
--- 全画面の起点になる。ジャンル横断で1ユーザー分を引く既存クエリと併せて効くよう、
--- catalog_entities側に索引を張る。
-CREATE INDEX idx_catalog_entities_subtype ON catalog_entities(subtype);

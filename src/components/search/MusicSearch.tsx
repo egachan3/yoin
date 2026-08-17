@@ -11,12 +11,8 @@ import { SUBTYPE_LABELS } from "@/lib/categories";
 // (引き継ぎ.md 3.5節)。棚のカテゴリと検索画面が1対1で対応する
 type MusicSubtype = "album" | "song";
 
-// APIが受け取る語彙。棚のsubtype("album"/"song")と偶然一致しているが、
-// 別々の概念なので明示的に対応付けておく
-const ENTITY_TYPE: Record<MusicSubtype, "album" | "song"> = {
-	album: "album",
-	song: "song",
-};
+// 検索APIが受け取るentityTypeの語彙と、棚のsubtypeの語彙は同一に揃えてある
+// (iTunes側の"album"/"song"をそのままsubtypeに採用したため)。変換は要らない
 
 const PLACEHOLDER: Record<MusicSubtype, string> = {
 	// MusicBrainzは人気順のデータを持たず同名異曲に埋もれやすいため、
@@ -58,7 +54,7 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 		setStatus("loading");
 		const url = new URL("/api/search/music", window.location.origin);
 		url.searchParams.set("q", targetQuery);
-		url.searchParams.set("entityType", ENTITY_TYPE[subtype]);
+		url.searchParams.set("entityType", subtype);
 		url.searchParams.set("offset", String(offset));
 
 		const res = await fetch(url.toString());
@@ -99,7 +95,7 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 			body: JSON.stringify({
 				source: candidate.source,
 				sourceId: candidate.sourceId,
-				entityType: ENTITY_TYPE[subtype],
+				entityType: subtype,
 			}),
 		});
 		setAddingId(null);

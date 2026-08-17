@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 import { compressImage } from "@/lib/image-compress";
 import { SUBTYPE_LABELS, SUBTYPE_TO_GENRE, aspectRatioFor, isSubtype } from "@/lib/categories";
@@ -23,8 +24,7 @@ function ManualEntryForm() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const subtypeParam = searchParams.get("subtype");
-	// 検索画面を経由しない直接アクセスへの保険。通常の導線では必ず値が付く
-	const subtype = isSubtype(subtypeParam) ? subtypeParam : "book";
+	const subtype = isSubtype(subtypeParam) ? subtypeParam : null;
 	const [title, setTitle] = useState(searchParams.get("title") ?? "");
 	const [date, setDate] = useState(todayLocalDate());
 	const [submitting, setSubmitting] = useState(false);
@@ -62,6 +62,8 @@ function ManualEntryForm() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
+		// subtypeがnullのときはフォーム自体を描画しないので、ここには到達しない
+		if (!subtype) return;
 		if (!title.trim()) {
 			setError("タイトルを入力してください。");
 			return;
@@ -88,6 +90,23 @@ function ManualEntryForm() {
 		} finally {
 			setSubmitting(false);
 		}
+	}
+
+	// カテゴリが特定できない場合はフォームを出さない。既定値(例: 本)に倒すと、
+	// マンガのつもりで追加したものが黙って本として保存されてしまう。
+	// 通常は各検索画面のリンクから必ず?subtype=...付きで遷移してくる
+	if (!subtype) {
+		return (
+			<main style={{ maxWidth: 480, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
+				<h1 style={{ fontSize: 24, marginBottom: "var(--space-2)" }}>カテゴリが指定されていません</h1>
+				<p className="text-muted" style={{ fontSize: 13, marginBottom: "var(--space-6)" }}>
+					手動で追加するには、追加したいカテゴリの検索画面から「手動で追加」を選んでください。
+				</p>
+				<Link href="/" className="btn btn-primary btn-block">
+					棚に戻る
+				</Link>
+			</main>
+		);
 	}
 
 	return (
@@ -180,7 +199,7 @@ function ManualEntryForm() {
 					/>
 				</div>
 
-				{error &&<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}
+				{error && <p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}
 
 				<button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
 					{submitting ? "追加中…" : "棚に追加"}

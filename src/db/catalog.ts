@@ -234,11 +234,17 @@ export type MusicSourceCandidate = MusicCandidate | ItunesCandidate;
  * 音楽候補の「アルバムか曲か」をsubtypeに正規化する。
  * MusicBrainzは release-group / recording、iTunesは album / song と
  * 語彙が異なるため、ここで1つに寄せる。
+ *
+ * 網羅的なマップにしているのは、将来どちらかのAPIに新しいentityTypeが増えたとき、
+ * elseへのフォールバックで黙って「曲」として保存されるのを防ぐため
+ * (キーが欠けるとRecordの型でビルドが落ちる)。
  */
-function musicSubtype(candidate: MusicSourceCandidate): Subtype {
-  const isAlbum = candidate.entityType === "release-group" || candidate.entityType === "album";
-  return isAlbum ? "album" : "song";
-}
+const MUSIC_SUBTYPE: Record<MusicSourceCandidate["entityType"], Subtype> = {
+  "release-group": "album",
+  album: "album",
+  recording: "song",
+  song: "song",
+};
 
 async function findExistingMusicCatalogId(
   db: Kysely<Database>,
@@ -286,7 +292,7 @@ export async function findOrCreateMusicCatalogEntity(
     .values({
       id: catalogId,
       genre: "music",
-      subtype: musicSubtype(candidate),
+      subtype: MUSIC_SUBTYPE[candidate.entityType],
       title: candidate.title,
       primary_image_ref: null,
       owner_user_id: null,
