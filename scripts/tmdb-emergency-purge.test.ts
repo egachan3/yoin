@@ -34,27 +34,33 @@ describe("buildPurgeStatements", () => {
   const now = 1_700_000_000;
   const statements = buildPurgeStatements(target, now);
 
-  it("3文(catalog_entities更新・source_records更新・deletion_log挿入)を返す", () => {
-    expect(statements).toHaveLength(3);
+  it("5文(BEGIN・catalog_entities更新・source_records更新・deletion_log挿入・COMMIT)を返す", () => {
+    expect(statements).toHaveLength(5);
+  });
+
+  it("BEGIN TRANSACTIONで始まりCOMMITで終わる(対象1件の原子性を保証)", () => {
+    expect(statements[0]).toBe("BEGIN TRANSACTION;");
+    expect(statements.at(-1)).toBe("COMMIT;");
   });
 
   it("catalog_entitiesをプレースホルダタイトル・画像nullで更新する", () => {
-    expect(statements[0]).toContain("UPDATE catalog_entities");
-    expect(statements[0]).toContain(PLACEHOLDER_TITLE);
-    expect(statements[0]).toContain("primary_image_ref = NULL");
-    expect(statements[0]).toContain("id = 'ce-1'");
+    expect(statements[1]).toContain("UPDATE catalog_entities");
+    expect(statements[1]).toContain(PLACEHOLDER_TITLE);
+    expect(statements[1]).toContain("primary_image_ref = NULL");
+    expect(statements[1]).toContain("id = 'ce-1'");
   });
 
-  it("source_recordsをdeletion_status='deleted'に更新する", () => {
-    expect(statements[1]).toContain("UPDATE source_records");
-    expect(statements[1]).toContain("deletion_status = 'deleted'");
-    expect(statements[1]).toContain("id = 'sr-1'");
+  it("source_recordsをdeletion_status='deleted'に更新する(既にdeleted済みの行は対象にしないガード付き)", () => {
+    expect(statements[2]).toContain("UPDATE source_records");
+    expect(statements[2]).toContain("deletion_status = 'deleted'");
+    expect(statements[2]).toContain("id = 'sr-1'");
+    expect(statements[2]).toContain("AND deletion_status != 'deleted'");
   });
 
   it("deletion_logにtmdb由来として記録する", () => {
-    expect(statements[2]).toContain("INSERT INTO deletion_log");
-    expect(statements[2]).toContain("'tmdb'");
-    expect(statements[2]).toContain("'movie:123'");
+    expect(statements[3]).toContain("INSERT INTO deletion_log");
+    expect(statements[3]).toContain("'tmdb'");
+    expect(statements[3]).toContain("'movie:123'");
   });
 
   it("catalog_entity_idにシングルクオートが含まれてもエスケープされ、文字列リテラルの外に出ない(SQLインジェクション対策)", () => {
@@ -62,7 +68,7 @@ describe("buildPurgeStatements", () => {
     const escaped = buildPurgeStatements(maliciousTarget, now);
     // sqlString()がシングルクオートを''にエスケープするため、
     // 元の値のシングルクオートは文字列リテラルを閉じられない
-    expect(escaped[0]).toBe(
+    expect(escaped[1]).toBe(
       `UPDATE catalog_entities SET title = '${PLACEHOLDER_TITLE}', primary_image_ref = NULL, updated_at = ${now} WHERE id = 'ce-1''; DROP TABLE catalog_entities; --';`,
     );
   });
