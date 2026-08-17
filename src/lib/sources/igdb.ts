@@ -174,14 +174,22 @@ const JAPANESE_CHAR_REGEX = /[぀-ヿ一-鿿]/;
  * だけでは実際の日本語表記かどうか判別できない(実データで確認済み)。
  * そのため、commentに"japanese"を含む候補に絞った上で、name自体に実際の
  * 日本語文字(ひらがな・カタカナ・漢字)を含むものだけを採用する。
- * 該当が複数ある場合はIGDBが返す順序のまま先頭を採用する。
+ *
+ * 該当が複数ある場合、commentが"Japanese title"に完全一致(大小文字は無視)する
+ * ものを優先する。IGDBは正式な日本語タイトルにはこの完全一致のcommentを付け、
+ * 略称等の別名には"Japanese title - abbreviation"のように補足が付く傾向が
+ * あるため(レビュー指摘: 配列順は仕様として保証されないので、順序に頼らず
+ * comment内容で優先度を決める)。完全一致が無ければ配列順で先頭を採用する。
  */
 function pickJapaneseTitle(
   alternativeNames: z.infer<typeof AlternativeNameSchema>[] | null | undefined,
 ): string | null {
   if (!alternativeNames) return null;
-  const japaneseTagged = alternativeNames.filter((a) => a.comment?.toLowerCase().includes("japanese"));
-  return japaneseTagged.find((a) => JAPANESE_CHAR_REGEX.test(a.name))?.name ?? null;
+  const japaneseTagged = alternativeNames.filter(
+    (a) => a.comment?.toLowerCase().includes("japanese") && JAPANESE_CHAR_REGEX.test(a.name),
+  );
+  const exactMatch = japaneseTagged.find((a) => a.comment?.trim().toLowerCase() === "japanese title");
+  return exactMatch?.name ?? japaneseTagged[0]?.name ?? null;
 }
 
 function toCandidate(
