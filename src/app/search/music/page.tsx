@@ -26,7 +26,7 @@ export default function MusicSearchPage() {
 	const [query, setQuery] = useState("");
 	// 実際に検索を実行した時点のクエリ。「もっと探す」はこちらを使う(入力欄の
 	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
-	// 新しい文字列を古い検索結果に追記してしまうバグになる。レビュー指摘で発見)
+	// 新しい文字列を古い検索結果に追記してしまうバグになる)
 	const [searchedQuery, setSearchedQuery] = useState("");
 	const [candidates, setCandidates] = useState<MusicCandidate[]>([]);
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -45,6 +45,14 @@ export default function MusicSearchPage() {
 		const res = await fetch(url.toString());
 		if (!res.ok) {
 			setStatus("error");
+			// 新規検索(もっと探すではない)の失敗時は前回の結果を残さない。残すと、
+			// 表示中の(古いクエリの)結果に対して「もっと探す」を押した際、
+			// 新しいクエリのnextOffsetを使わないまま古いnextOffsetでリクエストが
+			// 飛び、無関係な結果が追記されてしまう(レビュー指摘で発見)
+			if (!append) {
+				setCandidates([]);
+				setNextOffset(null);
+			}
 			return;
 		}
 		const data = (await res.json()) as SearchResponse;
@@ -55,6 +63,10 @@ export default function MusicSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
+		// 空クエリで送信すると、runSearch内のtrimチェックで即returnする一方
+		// searchedQueryだけ空文字に更新されてしまい、既存の検索結果が表示された
+		// ままの状態で「もっと探す」がサイレントに無反応になる(レビュー指摘で発見)
+		if (!query.trim()) return;
 		setSearchedQuery(query);
 		await runSearch(0, false, entity, query);
 	}

@@ -49,6 +49,13 @@ export default function BookSearchPage() {
 		const res = await fetch(url.toString());
 		if (!res.ok) {
 			setStatus("error");
+			// 新規検索(もっと探すではない)の失敗時は前回の結果を残さない。残すと、
+			// 表示中の(古いクエリの)結果に対して「もっと探す」を押した際、
+			// 古いnextStartRecordで新しいクエリの結果が追記されてしまう
+			if (!append) {
+				setCandidates([]);
+				setNextStartRecord(null);
+			}
 			return;
 		}
 		const data = (await res.json()) as SearchResponse;
@@ -60,6 +67,10 @@ export default function BookSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
+		// 空クエリで送信すると、runSearch内のtrimチェックで即returnする一方
+		// searchedQueryだけ空文字に更新されてしまい、既存の検索結果が表示された
+		// ままの状態で「もっと探す」がサイレントに無反応になる
+		if (!query.trim()) return;
 		setSearchedQuery(query);
 		await runSearch(1, false, query);
 	}

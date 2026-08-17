@@ -89,6 +89,13 @@ export default function AnimeMangaSearchPage() {
 			// 検索ボタンがリロードするまで押せなくなる
 			if (seq === searchSeqRef.current) {
 				setSearchError("通信に失敗しました。接続を確認してもう一度お試しください。");
+				// !res.okの分岐と同じ理由で、新規検索(もっと探すではない)の失敗時は
+				// 前回の結果を残さない(レビュー指摘: catch経路だけクリア処理が
+				// 漏れていた。通信断による2回目検索の失敗でも同じ混在バグが起きうる)
+				if (!append) {
+					setCandidates([]);
+					setNextOffset(null);
+				}
 			}
 		} finally {
 			// 古いリクエストの完了で、後から始まった検索のローディング表示を
@@ -101,6 +108,10 @@ export default function AnimeMangaSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
+		// 空クエリで送信すると、runSearch内のtrimチェックで即returnする一方
+		// searchedQueryだけ空文字に更新されてしまい、既存の検索結果が表示された
+		// ままの状態で「もっと探す」がサイレントに無反応になる
+		if (!query.trim()) return;
 		setSearchedQuery(query);
 		await runSearch(0, false, mediaType, query);
 	}
