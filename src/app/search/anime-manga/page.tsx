@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type MediaType = "anime" | "manga";
 
@@ -180,6 +181,12 @@ export default function AnimeMangaSearchPage() {
 					検索
 				</button>
 			</form>
+
+			<div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
+				<Link href={`/entries/new?genre=anime_manga&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
+					手動で追加
+				</Link>
+			</div>
 
 			{searchError && <p style={{ color: "var(--color-accent-800)" }}>{searchError}</p>}
 

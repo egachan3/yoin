@@ -731,6 +731,18 @@ export interface ManualCatalogEntityInput {
 }
 
 /**
+ * 手動入力エントリのユーザーアップロード画像。R2への書き込みはcatalog_entity
+ * 作成後のフォローアップ扱い(書籍のGoogle Books書影取得と同じ考え方: 失敗しても
+ * catalog_entities+shelf_entriesの原子的な書き込み自体は既に成功済みなので、
+ * プレースホルダーのまま残るだけで許容する)。
+ */
+export interface ManualImageUpload {
+  r2: R2Bucket;
+  bytes: ArrayBuffer;
+  contentType: string;
+}
+
+/**
  * 外部APIで検索してもヒットしない作品を、ユーザー自身の手で棚に記録するための
  * catalog_entity作成関数(spec 5.4「検索結果0件時のフォールバックUI」)。
  *
@@ -742,14 +754,19 @@ export interface ManualCatalogEntityInput {
  *   owner_user_idで所有者に紐付けて他ユーザーの名寄せ対象・検索結果から構造的に除外する
  *
  * source_recordsは一切作らない(手動入力には外部ソースが存在しないため)。
- * 画像はユーザーアップロードではなく、ジャンル別の静的プレースホルダー(public/placeholders/)
- * を割り当てる(spec: App Store UGCモデレーション義務を避けるための決定)。
+ * 画像はユーザーが任意でアップロードでき(imageUpload省略時はジャンル別の静的
+ * プレースホルダーのまま)、`/api/entries/{catalogId}/image`という認証付きルート
+ * (所有者本人のみ閲覧可)経由で配信する。手動入力エントリは本人以外に表示されない
+ * 設計のため、R2画像プロキシ(/img/[workId]/[variant]、認証なし・全公開)とは
+ * 意図的に別の配信経路にしている(image-proxy.tsのresolveImageSourceが
+ * owner_user_id非nullの行を構造的に除外している設計と対になる)。
  */
 export async function createManualCatalogEntity(
   db: Kysely<Database>,
   d1: D1Database,
   input: ManualCatalogEntityInput,
   shelfEntryValues: ShelfEntryValuesWithoutCatalogId,
+  imageUpload?: ManualImageUpload,
 ): Promise<string> {
   const catalogId = uuidv7();
   const now = nowSeconds();
@@ -777,6 +794,23 @@ export async function createManualCatalogEntity(
     d1.prepare(insertCatalogEntity.sql).bind(...insertCatalogEntity.parameters),
     d1.prepare(insertShelfEntry.sql).bind(...insertShelfEntry.parameters),
   ]);
+
+  if (imageUpload) {
+    try {
+      await imageUpload.r2.put(`manual/${catalogId}.jpg`, imageUpload.bytes, {
+        httpMetadata: { contentType: imageUpload.contentType },
+      });
+      await db
+        .updateTable("catalog_entities")
+        .set({ primary_image_ref: `/api/entries/${catalogId}/image`, updated_at: nowSeconds() })
+        .where("id", "=", catalogId)
+        .execute();
+    } catch (err) {
+      // 書籍の書影取得失敗時と同じ扱い: 記録自体は既に成功済みなので、
+      // プレースホルダーのまま残して処理は継続する
+      console.error("[createManualCatalogEntity] 画像のアップロードに失敗しました", err);
+    }
+  }
 
   return catalogId;
 }

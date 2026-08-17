@@ -16,6 +16,12 @@ const AddManualEntrySchema = z.object({
   status: z.enum(["planned", "in_progress", "completed", "on_hold", "dropped"]),
 });
 
+// クライアント側(entries/new)でCanvasによりリサイズ+JPEG圧縮済みの前提だが、
+// 改造されたクライアント・別クライアントからの直接呼び出しに備えてサーバー側でも
+// 上限を設ける(圧縮後は通常数百KB程度に収まるため、これはあくまで防御的な上限)
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const ALLOWED_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
   const auth = createAuth(env);
@@ -25,8 +31,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => null);
-  const parsed = AddManualEntrySchema.safeParse(body);
+  const formData = await request.formData().catch(() => null);
+  if (!formData) {
+    return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
+  }
+
+  const parsed = AddManualEntrySchema.safeParse({
+    genre: formData.get("genre"),
+    title: formData.get("title"),
+    date: formData.get("date"),
+    status: formData.get("status"),
+  });
   if (!parsed.success) {
     return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
   }
@@ -34,6 +49,23 @@ export async function POST(request: Request) {
   const dateSeconds = parseManualDate(parsed.data.date);
   if (dateSeconds === null) {
     return Response.json({ error: "invalid_body", message: "日付が不正です。" }, { status: 422 });
+  }
+
+  // 画像は任意。付いていれば形式・サイズを検証する(image-proxy.tsのContent-Type
+  // 正規化と同じ考え方: パラメータを落として小文字化してから比較する)
+  const imageField = formData.get("image");
+  let imageBytes: ArrayBuffer | null = null;
+  let imageContentType: string | null = null;
+  if (imageField instanceof File && imageField.size > 0) {
+    if (imageField.size > MAX_IMAGE_BYTES) {
+      return Response.json({ error: "invalid_body", message: "画像のサイズが大きすぎます。" }, { status: 422 });
+    }
+    const normalizedType = imageField.type.split(";")[0].trim().toLowerCase();
+    if (!ALLOWED_IMAGE_CONTENT_TYPES.includes(normalizedType)) {
+      return Response.json({ error: "invalid_body", message: "対応していない画像形式です。" }, { status: 422 });
+    }
+    imageBytes = await imageField.arrayBuffer();
+    imageContentType = normalizedType;
   }
 
   const db = createDb(env.DB);
@@ -75,6 +107,7 @@ export async function POST(request: Request) {
         created_at: now,
         updated_at: now,
       },
+      imageBytes && imageContentType ? { r2: env.IMAGE_CACHE, bytes: imageBytes, contentType: imageContentType } : undefined,
     );
   } catch {
     return Response.json(
