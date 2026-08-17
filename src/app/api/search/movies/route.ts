@@ -1,6 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
-import { searchMoviesAndTv } from "@/lib/sources/tmdb";
+import { searchMovies, searchTv } from "@/lib/sources/tmdb";
 
 export async function GET(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -30,8 +30,19 @@ export async function GET(request: Request) {
   const page = pageParam ? Number(pageParam) : 1;
   const safePage = Number.isFinite(page) && page >= 1 ? page : 1;
 
+  // 棚のカテゴリが映画とドラマに分かれたのに伴い、検索も片方ずつに分けた
+  // (引き継ぎ.md 3.5節)。以前は/search/movieと/search/tvを同時に叩いて
+  // 結果を統合していたが、その分TMDBへのリクエストが倍かかっていた
+  const mediaType = searchParams.get("mediaType");
+  if (mediaType !== "movie" && mediaType !== "tv") {
+    return Response.json({ error: "invalid_query", message: "種別が不正です。" }, { status: 422 });
+  }
+
   try {
-    const candidates = await searchMoviesAndTv(query, env.TMDB_API_KEY, safePage);
+    const candidates =
+      mediaType === "movie"
+        ? await searchMovies(query, env.TMDB_API_KEY, safePage)
+        : await searchTv(query, env.TMDB_API_KEY, safePage);
     return Response.json({ candidates });
   } catch {
     return Response.json(

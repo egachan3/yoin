@@ -3,7 +3,8 @@
 
 import { uuidv7 } from "uuidv7";
 import type { Kysely, Insertable } from "kysely";
-import type { Database, CatalogSource, Genre, ShelfEntryTable } from "./schema";
+import type { Database, CatalogSource, ShelfEntryTable, Subtype } from "./schema";
+import { SUBTYPE_TO_GENRE } from "@/lib/categories";
 import type { NdlBookCandidate } from "@/lib/sources/ndl";
 import { fetchCoverByIsbn } from "@/lib/sources/google-books";
 import type { MusicCandidate } from "@/lib/sources/musicbrainz";
@@ -105,6 +106,7 @@ export async function findOrCreateBookCatalogEntity(
     .values({
       id: catalogId,
       genre: "book",
+      subtype: "book",
       title: candidate.title,
       primary_image_ref: null,
       owner_user_id: null,
@@ -228,6 +230,22 @@ export async function findOrCreateBookCatalogEntity(
 
 export type MusicSourceCandidate = MusicCandidate | ItunesCandidate;
 
+/**
+ * 音楽候補の「アルバムか曲か」をsubtypeに正規化する。
+ * MusicBrainzは release-group / recording、iTunesは album / song と
+ * 語彙が異なるため、ここで1つに寄せる。
+ *
+ * 網羅的なマップにしているのは、将来どちらかのAPIに新しいentityTypeが増えたとき、
+ * elseへのフォールバックで黙って「曲」として保存されるのを防ぐため
+ * (キーが欠けるとRecordの型でビルドが落ちる)。
+ */
+const MUSIC_SUBTYPE: Record<MusicSourceCandidate["entityType"], Subtype> = {
+  "release-group": "album",
+  album: "album",
+  recording: "song",
+  song: "song",
+};
+
 async function findExistingMusicCatalogId(
   db: Kysely<Database>,
   source: CatalogSource,
@@ -274,6 +292,7 @@ export async function findOrCreateMusicCatalogEntity(
     .values({
       id: catalogId,
       genre: "music",
+      subtype: MUSIC_SUBTYPE[candidate.entityType],
       title: candidate.title,
       primary_image_ref: null,
       owner_user_id: null,
@@ -457,6 +476,8 @@ export async function findOrCreateMovieCatalogEntity(
     .values({
       id: catalogId,
       genre: "movie_tv",
+      // TMDBのmediaType("movie"/"tv")がそのままsubtypeの語彙になっている
+      subtype: candidate.mediaType,
       title: candidate.title,
       primary_image_ref: imageUrl,
       owner_user_id: null,
@@ -566,6 +587,8 @@ export async function findOrCreateAnimeMangaCatalogEntity(
     .values({
       id: catalogId,
       genre: "anime_manga",
+      // MALのmediaType("anime"/"manga")がそのままsubtypeの語彙になっている
+      subtype: candidate.mediaType,
       // 日本語タイトルがあれば優先する(spec 6章の日本市場向け差別化)
       title: malDisplayTitle(candidate),
       primary_image_ref: candidate.mainPicture,
@@ -669,6 +692,7 @@ export async function findOrCreateGameCatalogEntity(
     .values({
       id: catalogId,
       genre: "game",
+      subtype: "game",
       // 日本語タイトルがあれば優先する(spec 6章の日本市場向け差別化。アニメ・マンガと同じ)
       title: igdbDisplayTitle(candidate),
       primary_image_ref: imageUrl,
@@ -727,7 +751,10 @@ export async function findOrCreateGameCatalogEntity(
 }
 
 export interface ManualCatalogEntityInput {
-  genre: Genre;
+  // 手動入力に至る導線は必ず特定のカテゴリの検索画面を経由するため、
+  // subtypeは呼び出し時点で確定している(ユーザーに再度選ばせる必要はない)。
+  // genreはSUBTYPE_TO_GENREで導出し、二重指定による食い違いを防ぐ
+  subtype: Subtype;
   title: string;
   ownerUserId: string;
 }
@@ -780,9 +807,12 @@ export async function createManualCatalogEntity(
     .insertInto("catalog_entities")
     .values({
       id: catalogId,
-      genre: input.genre,
+      genre: SUBTYPE_TO_GENRE[input.subtype],
+      subtype: input.subtype,
       title: input.title,
-      primary_image_ref: MANUAL_PLACEHOLDER_IMAGE[input.genre],
+      // プレースホルダー画像はジャンル単位の5種のまま(アルバムと曲、映画とドラマで
+      // 絵を分ける必要はないため)
+      primary_image_ref: MANUAL_PLACEHOLDER_IMAGE[SUBTYPE_TO_GENRE[input.subtype]],
       owner_user_id: input.ownerUserId,
       merged_into_id: null,
       created_at: now,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { searchMovies, searchTv, searchMoviesAndTv, verifyMovieById, verifyTvById, buildImageUrl } from "./tmdb";
+import { searchMovies, searchTv, verifyMovieById, verifyTvById, buildImageUrl } from "./tmdb";
 
 const SAMPLE_MOVIE_SEARCH_ITEM = {
   id: 508947,
@@ -80,55 +80,6 @@ describe("searchMovies / searchTv", () => {
       tmdbId: 508947,
       title: "サンプルドラマ",
     });
-  });
-});
-
-describe("searchMoviesAndTv", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("映画とドラマを同時に検索し統合する(同じ数値IDでも別作品として区別できる)", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementation((url: string) => {
-        if (url.includes("/search/movie")) {
-          return Promise.resolve(jsonResponse({ results: [SAMPLE_MOVIE_SEARCH_ITEM] }));
-        }
-        return Promise.resolve(jsonResponse({ results: [SAMPLE_TV_SEARCH_ITEM] }));
-      });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const results = await searchMoviesAndTv("test", "dummy-key");
-
-    expect(results).toHaveLength(2);
-    expect(results[0].mediaType).toBe("movie");
-    expect(results[1].mediaType).toBe("tv");
-    // 同じtmdbId(508947)でもmediaTypeで区別できることの確認
-    expect(results[0].tmdbId).toBe(results[1].tmdbId);
-  });
-
-  it("片方のAPIだけ失敗しても、成功した側の結果は返す(回帰テスト)", async () => {
-    // Promise.allだと片方の失敗で全体がrejectしてしまい、成功していた
-    // 映画側の結果まで失われる問題を修正した(レビュー指摘)
-    const fetchMock = vi.fn().mockImplementation((url: string) => {
-      if (url.includes("/search/movie")) {
-        return Promise.resolve(jsonResponse({ results: [SAMPLE_MOVIE_SEARCH_ITEM] }));
-      }
-      return Promise.reject(new Error("TMDB TV search timeout"));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const results = await searchMoviesAndTv("test", "dummy-key");
-
-    expect(results).toHaveLength(1);
-    expect(results[0].mediaType).toBe("movie");
-  });
-
-  it("両方のAPIが失敗した場合は例外を投げる(呼び出し側が502として扱えるように)", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("TMDB全滅")));
-
-    await expect(searchMoviesAndTv("test", "dummy-key")).rejects.toThrow();
   });
 });
 

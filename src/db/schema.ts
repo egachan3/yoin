@@ -57,9 +57,23 @@ export interface VerificationTable {
 
 export type Genre = "book" | "music" | "movie_tv" | "anime_manga" | "game";
 
+/**
+ * 棚の表示単位。genreをUI上のカテゴリまで細分化したもの
+ * (音楽→アルバム/曲、映像→映画/ドラマ、アニメ・マンガ→アニメ/マンガ)。
+ * ラベルやgenreとの対応はsrc/lib/categories.tsに集約している。
+ */
+export type Subtype = "book" | "album" | "song" | "movie" | "tv" | "anime" | "manga" | "game";
+
 export interface CatalogEntityTable {
   id: string;
   genre: Genre;
+  /**
+   * DBのカラム定義はNULL許容だが、ここでは非nullとして扱う。
+   * SQLiteは後付けのNOT NULL列にデフォルト値を要求するため、意味のない
+   * デフォルト('book'等)で埋めると渡し忘れが黙って通ってしまう。
+   * 必須性は型で担保し、渡し忘れをビルド時に止める(migrations/0006参照)。
+   */
+  subtype: Subtype;
   title: string;
   primary_image_ref: string | null;
   owner_user_id: string | null;

@@ -4,7 +4,12 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { SUBTYPE_LABELS } from "@/lib/categories";
 
+// 「アニメ」「マンガ」がそれぞれ独立したカテゴリ(=独立したルート)になったため、
+// 画面内の切替トグルは廃止し、呼び出し側から固定で受け取る(引き継ぎ.md 3.5節)。
+// これに伴い、種別切替をまたいだ古いレスポンスを破棄するためのactiveTypeRefも
+// 不要になった(種別は画面の生存期間中ずっと変わらないため)
 type MediaType = "anime" | "manga";
 
 interface MalCandidate {
@@ -24,9 +29,8 @@ interface SearchResponse {
 	mediaType: MediaType;
 }
 
-export default function AnimeMangaSearchPage() {
+export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 	const router = useRouter();
-	const [mediaType, setMediaType] = useState<MediaType>("anime");
 	const [query, setQuery] = useState("");
 	// 実際に検索を実行した時点のクエリ。「もっと探す」はこちらを使う(入力欄の
 	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
@@ -37,37 +41,34 @@ export default function AnimeMangaSearchPage() {
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
 	const [searchError, setSearchError] = useState<string | null>(null);
 	const [addingKey, setAddingKey] = useState<string | null>(null);
-	// 実行中の検索を識別する連番と、現在アクティブな種別。
-	// stateはクロージャに呼び出し時点の値で固定されるため、await後の判定には使えない。
-	// refなら常に最新値を読めるので、古いレスポンスを確実に破棄できる
+	// 実行中の検索を識別する連番。stateはクロージャに呼び出し時点の値で固定される
+	// ため、await後の判定には使えない。refなら常に最新値を読めるので、
+	// 別クエリで再検索した後に到着した古いレスポンスを確実に破棄できる
 	const searchSeqRef = useRef(0);
-	const activeTypeRef = useRef<MediaType>("anime");
 	const [addError, setAddError] = useState<{ key: string; message: string } | null>(null);
 
 	// MALのアニメIDとマンガIDは別採番で、同じ数値IDが両方に実在する。
-	// malIdだけをkeyにすると、種別をまたいだ結果が並んだ際にkeyが衝突し、
-	// 押していないカードが「追加中…」になる等の取り違えが起きる
+	// 画面が片方の種別に固定された今も、キーの作り方は変えずに残しておく
+	// (将来また混在表示が必要になったときに衝突しないため)
 	function candidateKey(c: MalCandidate): string {
 		return `${c.mediaType}:${c.malId}`;
 	}
 
-	async function runSearch(offset: number, append: boolean, targetType: MediaType, targetQuery: string) {
+	async function runSearch(offset: number, append: boolean, targetQuery: string) {
 		if (!targetQuery.trim()) return;
 		setStatus("loading");
 		setSearchError(null);
 		const url = new URL("/api/search/anime-manga", window.location.origin);
 		url.searchParams.set("q", targetQuery);
-		url.searchParams.set("type", targetType);
+		url.searchParams.set("type", subtype);
 		url.searchParams.set("offset", String(offset));
 
 		const seq = ++searchSeqRef.current;
 
 		try {
 			const res = await fetch(url.toString());
-			// 種別を切り替えた後・別のクエリで再検索した後に到着した古いレスポンスは
-			// 一切反映しない。反映するとアニメとマンガが1つのリストに混ざり、
-			// 「もっと探す」で両種別が追記され続ける
-			if (seq !== searchSeqRef.current || activeTypeRef.current !== targetType) return;
+			// 別のクエリで再検索した後に到着した古いレスポンスは一切反映しない
+			if (seq !== searchSeqRef.current) return;
 			if (!res.ok) {
 				// レート制限(429)・設定不足(502)など、原因ごとに違うメッセージを
 				// サーバーが返すため、そのまま表示する。「検索に失敗しました」で
@@ -115,18 +116,7 @@ export default function AnimeMangaSearchPage() {
 		// ままの状態で「もっと探す」がサイレントに無反応になる
 		if (!query.trim()) return;
 		setSearchedQuery(query);
-		await runSearch(0, false, mediaType, query);
-	}
-
-	function handleMediaTypeChange(next: MediaType) {
-		activeTypeRef.current = next;
-		setMediaType(next);
-		// 種別を切り替えたら前の結果は破棄する。残したまま追加すると、
-		// 表示中の候補と送信するmediaTypeが食い違う
-		setCandidates([]);
-		setNextOffset(null);
-		setSearchError(null);
-		setAddError(null);
+		await runSearch(0, false, query);
 	}
 
 	async function handleAdd(candidate: MalCandidate) {
@@ -137,8 +127,8 @@ export default function AnimeMangaSearchPage() {
 			const res = await fetch("/api/shelf/anime-manga", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				// 候補自身が持つmediaTypeを送る(画面のトグル状態ではなく)。
-				// 検索結果と操作の間でトグルが変わっても食い違わないようにするため
+				// 画面のsubtypeではなく候補自身が持つmediaTypeを送る
+				// (候補とリクエストが必ず一致することを保証するため)
 				body: JSON.stringify({ mediaType: candidate.mediaType, malId: candidate.malId }),
 			});
 			if (res.ok) {
@@ -168,24 +158,7 @@ export default function AnimeMangaSearchPage() {
 
 	return (
 		<main style={{ maxWidth: 480, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
-			<h1 style={{ fontSize: 24, marginBottom: "var(--space-4)" }}>アニメ・マンガを探す</h1>
-
-			<div style={{ display: "flex", gap: 8, marginBottom: "var(--space-4)" }}>
-				<button
-					type="button"
-					className={mediaType === "anime" ? "btn btn-primary" : "btn btn-secondary"}
-					onClick={() => handleMediaTypeChange("anime")}
-				>
-					アニメ
-				</button>
-				<button
-					type="button"
-					className={mediaType === "manga" ? "btn btn-primary" : "btn btn-secondary"}
-					onClick={() => handleMediaTypeChange("manga")}
-				>
-					マンガ
-				</button>
-			</div>
+			<h1 style={{ fontSize: 24, marginBottom: "var(--space-4)" }}>{SUBTYPE_LABELS[subtype]}を探す</h1>
 
 			<form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, marginBottom: "var(--space-6)" }}>
 				<input
@@ -201,7 +174,7 @@ export default function AnimeMangaSearchPage() {
 			</form>
 
 			<div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
-				<Link href={`/entries/new?genre=anime_manga&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
+				<Link href={`/entries/new?subtype=${subtype}&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
 					手動で追加
 				</Link>
 			</div>
@@ -239,7 +212,7 @@ export default function AnimeMangaSearchPage() {
 					type="button"
 					className="btn btn-ghost btn-block"
 					style={{ marginTop: "var(--space-4)" }}
-					onClick={() => runSearch(nextOffset, true, mediaType, searchedQuery)}
+					onClick={() => runSearch(nextOffset, true, searchedQuery)}
 					disabled={status === "loading"}
 				>
 					{status === "loading" ? "読み込み中…" : "もっと探す"}

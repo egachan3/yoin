@@ -73,8 +73,10 @@ export async function POST(request: Request) {
         id: entryId,
         user_id: session.user.id,
         source_type: "manual_search",
-        // 書籍のデフォルト状態はplanned(積読文化との整合、セクション5参照)
-        status: "planned",
+        // 従来は書籍のみplanned(積読文化との整合、spec セクション5)だったが、
+        // ステータスをUIから廃止したのに伴い全ジャンルcompleted固定に統一した
+        // (引き継ぎ.md 3.5節)。DBの列自体は将来の復活に備えて残している
+        status: "completed",
         is_revisiting: 0,
         revisit_count: 0,
         comment: null,
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
         raw_duration_value: pageCount !== null ? String(pageCount) : null,
         raw_duration_unit: pageCount !== null ? "page" : null,
         added_at: now,
-        completed_at: null,
+        completed_at: now,
         created_at: now,
         updated_at: now,
       },

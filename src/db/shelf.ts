@@ -18,6 +18,9 @@ export async function listShelfEntries(db: Kysely<Database>, userId: string) {
       "shelf_entries.added_at",
       "catalog_entities.id as catalog_id",
       "catalog_entities.genre",
+      // 棚の表示単位はgenreではなくsubtype(本/アルバム/曲/映画/ドラマ/
+      // アニメ/マンガ/ゲームの8カテゴリ)。画像の縦横比の判定にも使う
+      "catalog_entities.subtype",
       "catalog_entities.title",
       "catalog_entities.primary_image_ref",
       // 手動入力(非null)かどうかで画像の描画経路を分岐するために必要。
