@@ -24,6 +24,12 @@ export interface IgdbCandidate {
   source: "igdb";
   igdbId: number;
   title: string;
+  /**
+   * 日本語タイトル。alternative_namesのうち、comment(用途の説明文)に
+   * "Japanese"を含み、かつ実際に日本語文字(ひらがな・カタカナ・漢字)を
+   * 含むものが取れた場合のみ(pickJapaneseTitle参照)
+   */
+  titleJa: string | null;
   /** IGDBの画像ID。URLはbuildImageUrl()で組み立てる(cover.urlはサムネイルサイズしか返らないため) */
   coverImageId: string | null;
   releaseDate: string | null;
@@ -111,6 +117,12 @@ export async function getAccessToken(
 
 const CoverSchema = z.object({ image_id: z.string() }).nullable().optional();
 const PlatformSchema = z.object({ name: z.string() });
+const AlternativeNameSchema = z.object({
+  name: z.string(),
+  // 用途の説明文。"Japanese title - ..."のように付くが、統一フォーマットではない
+  // ため厳密な文字列一致ではなく緩い部分一致で判定する(pickJapaneseTitle参照)
+  comment: z.string().nullable().optional(),
+});
 
 const GameSchema = z.object({
   id: z.number(),
@@ -119,6 +131,7 @@ const GameSchema = z.object({
   cover: CoverSchema,
   first_release_date: z.number().nullable().optional(),
   platforms: z.array(PlatformSchema).nullable().optional(),
+  alternative_names: z.array(AlternativeNameSchema).nullable().optional(),
 });
 
 const GameListResponseSchema = z.array(GameSchema);
@@ -150,6 +163,27 @@ function unixToIsoDate(unixSeconds: number | null | undefined): string | null {
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
 
+/** ひらがな・カタカナ・漢字のいずれかを含むかどうか(全角記号や半角カナは対象外) */
+const JAPANESE_CHAR_REGEX = /[぀-ヿ一-鿿]/;
+
+/**
+ * alternative_namesから日本語タイトルを選ぶ。
+ *
+ * commentには"Japanese title - ..."系の説明が付くが、ローマ字表記の別名にも
+ * "Japanese title - romanization"のように付くことがあり、comment側の文字列
+ * だけでは実際の日本語表記かどうか判別できない(実データで確認済み)。
+ * そのため、commentに"japanese"を含む候補に絞った上で、name自体に実際の
+ * 日本語文字(ひらがな・カタカナ・漢字)を含むものだけを採用する。
+ * 該当が複数ある場合はIGDBが返す順序のまま先頭を採用する。
+ */
+function pickJapaneseTitle(
+  alternativeNames: z.infer<typeof AlternativeNameSchema>[] | null | undefined,
+): string | null {
+  if (!alternativeNames) return null;
+  const japaneseTagged = alternativeNames.filter((a) => a.comment?.toLowerCase().includes("japanese"));
+  return japaneseTagged.find((a) => JAPANESE_CHAR_REGEX.test(a.name))?.name ?? null;
+}
+
 function toCandidate(
   game: z.infer<typeof GameSchema>,
   timeToBeatNormallySeconds: number | null,
@@ -158,6 +192,7 @@ function toCandidate(
     source: "igdb",
     igdbId: game.id,
     title: game.name,
+    titleJa: pickJapaneseTitle(game.alternative_names),
     coverImageId: game.cover?.image_id ?? null,
     releaseDate: unixToIsoDate(game.first_release_date),
     platforms: (game.platforms ?? []).map((p) => p.name),
@@ -238,7 +273,7 @@ export async function searchGames(
   limit = 10,
 ): Promise<IgdbCandidate[]> {
   const escapedQuery = escapeApicalypseString(query);
-  const body = `search "${escapedQuery}"; fields name,slug,cover.image_id,first_release_date,platforms.name; where version_parent = null; limit ${limit};`;
+  const body = `search "${escapedQuery}"; fields name,slug,cover.image_id,first_release_date,platforms.name,alternative_names.name,alternative_names.comment; where version_parent = null; limit ${limit};`;
   const json = await igdbFetch("/games", body, kv, clientId, clientSecret);
   const games = GameListResponseSchema.parse(json);
   return games.map((g) => toCandidate(g, null));
@@ -254,7 +289,7 @@ export async function verifyGameById(
   clientId: string,
   clientSecret: string,
 ): Promise<IgdbCandidate | null> {
-  const gameBody = `fields name,slug,cover.image_id,first_release_date,platforms.name; where id = ${igdbId};`;
+  const gameBody = `fields name,slug,cover.image_id,first_release_date,platforms.name,alternative_names.name,alternative_names.comment; where id = ${igdbId};`;
   const gameJson = await igdbFetch("/games", gameBody, kv, clientId, clientSecret);
   const games = GameListResponseSchema.parse(gameJson);
   const game = games[0];
@@ -325,11 +360,17 @@ export function computeDuration(candidate: IgdbCandidate): DurationEstimate {
 export function buildRawFields(candidate: IgdbCandidate): Record<string, unknown> {
   return {
     title: candidate.title,
+    titleJa: candidate.titleJa,
     slug: candidate.slug,
     releaseDate: candidate.releaseDate,
     platforms: candidate.platforms,
     timeToBeatNormallySeconds: candidate.timeToBeatNormallySeconds,
   };
+}
+
+/** 日本語タイトルがあればそれを優先する(日本市場向けの差別化。spec 6章、MALと同じ考え方) */
+export function displayTitle(candidate: Pick<IgdbCandidate, "title" | "titleJa">): string {
+  return candidate.titleJa?.trim() || candidate.title;
 }
 
 /**

@@ -9,6 +9,7 @@ import { buildImageUrl } from "@/lib/sources/igdb";
 interface GameCandidate {
 	igdbId: number;
 	title: string;
+	titleJa: string | null;
 	coverImageId: string | null;
 	releaseDate: string | null;
 	platforms: string[];
@@ -87,6 +88,9 @@ export default function GameSearchPage() {
 
 	function subtitle(c: GameCandidate): string {
 		const parts: string[] = [];
+		// 日本語タイトルを主に出しているので、元のタイトルを補助表示する
+		// (アニメ・マンガと同じ考え方。同名作品の判別に効く)
+		if (c.titleJa && c.titleJa !== c.title) parts.push(c.title);
 		if (c.releaseDate) parts.push(c.releaseDate);
 		if (c.platforms.length > 0) parts.push(c.platforms.join(" / "));
 		return parts.join(" ・ ");
@@ -120,9 +124,12 @@ export default function GameSearchPage() {
 			<div style={{ display: "grid", gap: "var(--space-3)" }}>
 				{candidates.map((c) => (
 					<div key={c.igdbId} className="card" style={{ flexDirection: "row" }}>
-						<SearchResultThumbnail src={c.coverImageId ? buildImageUrl(c.coverImageId) : null} alt={c.title} />
+						<SearchResultThumbnail
+							src={c.coverImageId ? buildImageUrl(c.coverImageId) : null}
+							alt={c.titleJa?.trim() || c.title}
+						/>
 						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
-							<p className="card-title">{c.title}</p>
+							<p className="card-title">{c.titleJa?.trim() || c.title}</p>
 							<p className="card-meta">{subtitle(c) || "情報なし"}</p>
 							<button
 								type="button"
