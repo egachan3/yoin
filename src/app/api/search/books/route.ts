@@ -32,18 +32,33 @@ async function attachCoverImages(
   const targets = candidates.slice(0, IMAGE_LOOKUP_LIMIT);
   const rest = candidates.slice(IMAGE_LOOKUP_LIMIT);
 
+  // このDB照会は画像付与のための付加的な最適化(既存カタログの再利用によるGoogle
+  // Books節約)であり、失敗しても書籍検索自体は成立させる必要がある。ここを
+  // 無防備にすると、D1の一時的な障害だけでNDL検索が成功しているのに検索結果が
+  // 1件も表示されなくなる(レビュー指摘: catalog_entities非原子的書き込みの過去の
+  // 教訓と同じ「非クリティカル処理の失敗が本質的な処理を巻き込む」パターン)
   const bibIds = targets.map((c) => c.ndlBibId);
-  const existingRows =
-    bibIds.length > 0
-      ? await db
-          .selectFrom("source_records")
-          .innerJoin("catalog_entities", "catalog_entities.id", "source_records.catalog_entity_id")
-          .select(["source_records.source_id", "catalog_entities.primary_image_ref"])
-          .where("source_records.source", "=", "ndl")
-          .where("source_records.source_id", "in", bibIds)
-          .execute()
-      : [];
-  const existingByBibId = new Map(existingRows.map((r) => [r.source_id, r.primary_image_ref]));
+  let existingByBibId = new Map<string, string | null>();
+  try {
+    const existingRows =
+      bibIds.length > 0
+        ? await db
+            .selectFrom("source_records")
+            .innerJoin("catalog_entities", "catalog_entities.id", "source_records.catalog_entity_id")
+            .select(["source_records.source_id", "catalog_entities.primary_image_ref"])
+            .where("source_records.source", "=", "ndl")
+            .where("source_records.source_id", "in", bibIds)
+            // 現状book(ndl)のsource_recordsはdeletion_statusが常にactiveのため
+            // 実害はないが、将来書籍にも削除・再取得フローが入った場合に備えて
+            // 明示しておく(レビュー指摘)
+            .where("source_records.deletion_status", "=", "active")
+            .execute()
+        : [];
+    existingByBibId = new Map(existingRows.map((r) => [r.source_id, r.primary_image_ref]));
+  } catch {
+    // 既存カタログの照会に失敗しても、全件をGoogle Books個別問い合わせに
+    // フォールバックするだけで検索結果自体は返す
+  }
 
   const withImages = await Promise.all(
     targets.map(async (c) => {
