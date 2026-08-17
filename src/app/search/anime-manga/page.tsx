@@ -191,7 +191,7 @@ export default function AnimeMangaSearchPage() {
 					className="input"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder={mediaType === "anime" ? "アニメのタイトルで検索" : "マンガのタイトルで検索"}
+					placeholder="名前を入力してください"
 				/>
 				<button type="submit" className="btn btn-primary" disabled={status === "loading"}>
 					検索

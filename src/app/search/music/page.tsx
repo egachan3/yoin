@@ -124,7 +124,7 @@ export default function MusicSearchPage() {
 					className="input"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder={entity === "song" ? "曲名で検索" : "アルバム名で検索"}
+					placeholder={entity === "song" ? "曲名 アーティスト名" : "アルバム名 アーティスト名"}
 				/>
 				<button type="submit" className="btn btn-primary" disabled={status === "loading"}>
 					検索

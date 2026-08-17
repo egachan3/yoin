@@ -105,7 +105,7 @@ export default function BookSearchPage() {
 					className="input"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder="タイトルで検索"
+					placeholder="名前を入力してください"
 				/>
 				<button type="submit" className="btn btn-primary" disabled={status === "loading"}>
 					検索
