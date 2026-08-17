@@ -26,6 +26,10 @@ export default function AnimeMangaSearchPage() {
 	const router = useRouter();
 	const [mediaType, setMediaType] = useState<MediaType>("anime");
 	const [query, setQuery] = useState("");
+	// 実際に検索を実行した時点のクエリ。「もっと探す」はこちらを使う(入力欄の
+	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
+	// 新しい文字列を古い検索結果に追記してしまうバグになる)
+	const [searchedQuery, setSearchedQuery] = useState("");
 	const [candidates, setCandidates] = useState<MalCandidate[]>([]);
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
@@ -45,12 +49,12 @@ export default function AnimeMangaSearchPage() {
 		return `${c.mediaType}:${c.malId}`;
 	}
 
-	async function runSearch(offset: number, append: boolean, targetType: MediaType) {
-		if (!query.trim()) return;
+	async function runSearch(offset: number, append: boolean, targetType: MediaType, targetQuery: string) {
+		if (!targetQuery.trim()) return;
 		setStatus("loading");
 		setSearchError(null);
 		const url = new URL("/api/search/anime-manga", window.location.origin);
-		url.searchParams.set("q", query);
+		url.searchParams.set("q", targetQuery);
 		url.searchParams.set("type", targetType);
 		url.searchParams.set("offset", String(offset));
 
@@ -85,6 +89,13 @@ export default function AnimeMangaSearchPage() {
 			// 検索ボタンがリロードするまで押せなくなる
 			if (seq === searchSeqRef.current) {
 				setSearchError("通信に失敗しました。接続を確認してもう一度お試しください。");
+				// !res.okの分岐と同じ理由で、新規検索(もっと探すではない)の失敗時は
+				// 前回の結果を残さない(レビュー指摘: catch経路だけクリア処理が
+				// 漏れていた。通信断による2回目検索の失敗でも同じ混在バグが起きうる)
+				if (!append) {
+					setCandidates([]);
+					setNextOffset(null);
+				}
 			}
 		} finally {
 			// 古いリクエストの完了で、後から始まった検索のローディング表示を
@@ -97,7 +108,12 @@ export default function AnimeMangaSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		await runSearch(0, false, mediaType);
+		// 空クエリで送信すると、runSearch内のtrimチェックで即returnする一方
+		// searchedQueryだけ空文字に更新されてしまい、既存の検索結果が表示された
+		// ままの状態で「もっと探す」がサイレントに無反応になる
+		if (!query.trim()) return;
+		setSearchedQuery(query);
+		await runSearch(0, false, mediaType, query);
 	}
 
 	function handleMediaTypeChange(next: MediaType) {
@@ -175,7 +191,7 @@ export default function AnimeMangaSearchPage() {
 					className="input"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder={mediaType === "anime" ? "アニメのタイトルで検索" : "マンガのタイトルで検索"}
+					placeholder="名前を入力してください"
 				/>
 				<button type="submit" className="btn btn-primary" disabled={status === "loading"}>
 					検索
@@ -218,7 +234,7 @@ export default function AnimeMangaSearchPage() {
 					type="button"
 					className="btn btn-ghost btn-block"
 					style={{ marginTop: "var(--space-4)" }}
-					onClick={() => runSearch(nextOffset, true, mediaType)}
+					onClick={() => runSearch(nextOffset, true, mediaType, searchedQuery)}
 					disabled={status === "loading"}
 				>
 					{status === "loading" ? "読み込み中…" : "もっと探す"}

@@ -24,23 +24,35 @@ export default function MusicSearchPage() {
 	const router = useRouter();
 	const [entity, setEntity] = useState<Entity>("song");
 	const [query, setQuery] = useState("");
+	// 実際に検索を実行した時点のクエリ。「もっと探す」はこちらを使う(入力欄の
+	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
+	// 新しい文字列を古い検索結果に追記してしまうバグになる)
+	const [searchedQuery, setSearchedQuery] = useState("");
 	const [candidates, setCandidates] = useState<MusicCandidate[]>([]);
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<string | null>(null);
 	const [addError, setAddError] = useState<{ sourceId: string; message: string } | null>(null);
 
-	async function runSearch(offset: number, append: boolean, targetEntity: Entity) {
-		if (!query.trim()) return;
+	async function runSearch(offset: number, append: boolean, targetEntity: Entity, targetQuery: string) {
+		if (!targetQuery.trim()) return;
 		setStatus("loading");
 		const url = new URL("/api/search/music", window.location.origin);
-		url.searchParams.set("q", query);
+		url.searchParams.set("q", targetQuery);
 		url.searchParams.set("entityType", targetEntity);
 		url.searchParams.set("offset", String(offset));
 
 		const res = await fetch(url.toString());
 		if (!res.ok) {
 			setStatus("error");
+			// 新規検索(もっと探すではない)の失敗時は前回の結果を残さない。残すと、
+			// 表示中の(古いクエリの)結果に対して「もっと探す」を押した際、
+			// 新しいクエリのnextOffsetを使わないまま古いnextOffsetでリクエストが
+			// 飛び、無関係な結果が追記されてしまう(レビュー指摘で発見)
+			if (!append) {
+				setCandidates([]);
+				setNextOffset(null);
+			}
 			return;
 		}
 		const data = (await res.json()) as SearchResponse;
@@ -51,7 +63,12 @@ export default function MusicSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		await runSearch(0, false, entity);
+		// 空クエリで送信すると、runSearch内のtrimチェックで即returnする一方
+		// searchedQueryだけ空文字に更新されてしまい、既存の検索結果が表示された
+		// ままの状態で「もっと探す」がサイレントに無反応になる(レビュー指摘で発見)
+		if (!query.trim()) return;
+		setSearchedQuery(query);
+		await runSearch(0, false, entity, query);
 	}
 
 	function handleEntityChange(next: Entity) {
@@ -107,7 +124,7 @@ export default function MusicSearchPage() {
 					className="input"
 					value={query}
 					onChange={(e) => setQuery(e.target.value)}
-					placeholder={entity === "song" ? "曲名で検索" : "アルバム名で検索"}
+					placeholder={entity === "song" ? "曲名 アーティスト名" : "アルバム名 アーティスト名"}
 				/>
 				<button type="submit" className="btn btn-primary" disabled={status === "loading"}>
 					検索
@@ -147,7 +164,7 @@ export default function MusicSearchPage() {
 					type="button"
 					className="btn btn-ghost btn-block"
 					style={{ marginTop: "var(--space-4)" }}
-					onClick={() => runSearch(nextOffset, true, entity)}
+					onClick={() => runSearch(nextOffset, true, entity, searchedQuery)}
 					disabled={status === "loading"}
 				>
 					{status === "loading" ? "読み込み中…" : "もっと探す"}
