@@ -92,9 +92,10 @@ export async function POST(request: Request) {
       id: entryId,
       user_id: session.user.id,
       source_type: "manual_search",
-      // ゲームのデフォルト状態はplanned(spec セクション5の初期値テーブル。
-      // 書籍と同じく「積んでいる」時点での追加が主要動線という判断)
-      status: "planned",
+      // 従来はゲームもplanned(spec セクション5の初期値テーブル)だったが、
+      // ステータスをUIから廃止したのに伴い全ジャンルcompleted固定に統一した
+      // (引き継ぎ.md 3.5節)。DBの列自体は将来の復活に備えて残している
+      status: "completed",
       is_revisiting: 0,
       revisit_count: 0,
       comment: null,
@@ -104,7 +105,7 @@ export async function POST(request: Request) {
       raw_duration_value: duration.rawValue,
       raw_duration_unit: duration.rawUnit,
       added_at: now,
-      completed_at: null,
+      completed_at: now,
       created_at: now,
       updated_at: now,
     });

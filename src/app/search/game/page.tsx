@@ -114,7 +114,7 @@ export default function GameSearchPage() {
 			</form>
 
 			<div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
-				<Link href={`/entries/new?genre=game&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
+				<Link href={`/entries/new?subtype=game&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
 					手動で追加
 				</Link>
 			</div>

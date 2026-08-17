@@ -4,16 +4,20 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { createManualCatalogEntity } from "@/db/catalog";
-import { parseManualDate, isCompletedStatus } from "@/lib/manual-entry";
+import { parseManualDate } from "@/lib/manual-entry";
+import { isSubtype } from "@/lib/categories";
+import type { Subtype } from "@/db/schema";
 
 // 手動入力は外部APIへの再照会が存在しない(検索でヒットしなかった作品を記録するための
 // 経路のため)。他ジャンルの追加APIと異なり、クライアントから受け取ったtitle等を
 // そのままDBへ書き込む唯一の追加API(spec 5.4「手動入力は正規化から明示的に除外する」)
 const AddManualEntrySchema = z.object({
-  genre: z.enum(["book", "music", "movie_tv", "anime_manga", "game"]),
+  // 手動入力は必ず特定のカテゴリの検索画面から入るため、subtypeを受け取る。
+  // 選択肢をここに書き下すとカテゴリ増減時にcategories.tsと食い違うため、
+  // 判定はisSubtypeに委ねる(カテゴリ定義の情報源をcategories.tsに一本化する)
+  subtype: z.custom<Subtype>(isSubtype),
   title: z.string().trim().min(1).max(200),
   date: z.string(),
-  status: z.enum(["planned", "in_progress", "completed", "on_hold", "dropped"]),
 });
 
 // クライアント側(entries/new)でCanvasによりリサイズ+JPEG圧縮済みの前提だが、
@@ -47,10 +51,9 @@ export async function POST(request: Request) {
   }
 
   const parsed = AddManualEntrySchema.safeParse({
-    genre: formData.get("genre"),
+    subtype: formData.get("subtype"),
     title: formData.get("title"),
     date: formData.get("date"),
-    status: formData.get("status"),
   });
   if (!parsed.success) {
     return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
@@ -80,7 +83,6 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  const completed = isCompletedStatus(parsed.data.status);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
@@ -90,7 +92,7 @@ export async function POST(request: Request) {
       db,
       env.DB,
       {
-        genre: parsed.data.genre,
+        subtype: parsed.data.subtype,
         title: parsed.data.title,
         ownerUserId: session.user.id,
       },
@@ -98,7 +100,9 @@ export async function POST(request: Request) {
         id: entryId,
         user_id: session.user.id,
         source_type: "manual_entry",
-        status: parsed.data.status,
+        // ステータス(予定/進行中/完了/保留/中断)はUIから廃止し、全ジャンルcompleted固定に
+        // 統一した(引き継ぎ.md 3.5節)。DBの列は将来復活させる可能性があるため残している
+        status: "completed",
         is_revisiting: 0,
         revisit_count: 0,
         comment: null,
@@ -113,7 +117,7 @@ export async function POST(request: Request) {
         // ユーザーが指定した日付をそのまま使う(バックデート記録が主用途のため、
         // 他ジャンルのように追加操作時刻=nowを機械的に使わない)
         added_at: dateSeconds,
-        completed_at: completed ? dateSeconds : null,
+        completed_at: dateSeconds,
         created_at: now,
         updated_at: now,
       },

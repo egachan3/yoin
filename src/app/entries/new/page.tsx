@@ -2,16 +2,9 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { GENRE_LABELS, MANUAL_PLACEHOLDER_IMAGE, STATUS_LABELS } from "@/lib/manual-entry";
+import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 import { compressImage } from "@/lib/image-compress";
-import type { Genre, ShelfEntryStatus } from "@/db/schema";
-
-const GENRES = Object.keys(GENRE_LABELS) as Genre[];
-const STATUSES = Object.keys(STATUS_LABELS) as ShelfEntryStatus[];
-
-function isGenre(value: string | null): value is Genre {
-	return value !== null && (GENRES as string[]).includes(value);
-}
+import { SUBTYPE_LABELS, SUBTYPE_TO_GENRE, aspectRatioFor, isSubtype } from "@/lib/categories";
 
 function todayLocalDate(): string {
 	const now = new Date();
@@ -22,16 +15,18 @@ function todayLocalDate(): string {
 }
 
 // 各検索画面の「見つからない場合はこちらから手動で追加」リンクから、
-// ?genre=book&title=... の形で遷移してきた場合に初期値として使う。
+// ?subtype=book&title=... の形で遷移してくる。手動追加に至る導線は必ず
+// 特定のカテゴリの検索画面を経由するため、カテゴリはここで選び直させず
+// 表示するだけにしている(引き継ぎ.md 3.5節)。
 // useSearchParams()はビルド時の静的最適化のためSuspense境界が必須(Next.js App Router)
 function ManualEntryForm() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const genreParam = searchParams.get("genre");
-	const [genre, setGenre] = useState<Genre>(isGenre(genreParam) ? genreParam : "book");
+	const subtypeParam = searchParams.get("subtype");
+	// 検索画面を経由しない直接アクセスへの保険。通常の導線では必ず値が付く
+	const subtype = isSubtype(subtypeParam) ? subtypeParam : "book";
 	const [title, setTitle] = useState(searchParams.get("title") ?? "");
 	const [date, setDate] = useState(todayLocalDate());
-	const [status, setStatus] = useState<ShelfEntryStatus>("completed");
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [imageBlob, setImageBlob] = useState<Blob | null>(null);
@@ -75,10 +70,9 @@ function ManualEntryForm() {
 		setError(null);
 		try {
 			const formData = new FormData();
-			formData.set("genre", genre);
+			formData.set("subtype", subtype);
 			formData.set("title", title);
 			formData.set("date", date);
-			formData.set("status", status);
 			if (imageBlob) {
 				formData.set("image", imageBlob, "photo.jpg");
 			}
@@ -98,7 +92,9 @@ function ManualEntryForm() {
 
 	return (
 		<main style={{ maxWidth: 480, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
-			<h1 style={{ fontSize: 24, marginBottom: "var(--space-2)" }}>作品を手動で追加</h1>
+			<h1 style={{ fontSize: 24, marginBottom: "var(--space-2)" }}>
+				{SUBTYPE_LABELS[subtype]}を手動で追加
+			</h1>
 			<p className="text-muted" style={{ fontSize: 13, marginBottom: "var(--space-6)" }}>
 				検索でヒットしなかった作品を記録します。画像は任意で追加でき、この記録はあなた以外には表示されません。
 			</p>
@@ -110,8 +106,8 @@ function ManualEntryForm() {
 						style={{
 							position: "relative",
 							width: 160,
-							// アルバムジャケットは正方形が通例のため、音楽ジャンルのみ1:1にする
-							aspectRatio: genre === "music" ? "1 / 1" : "2 / 3",
+							// アルバムジャケットは正方形が通例のため、音楽のみ1:1にする
+							aspectRatio: aspectRatioFor(subtype),
 							borderRadius: "var(--radius-md)",
 							overflow: "hidden",
 							background: "var(--color-accent-100)",
@@ -120,7 +116,7 @@ function ManualEntryForm() {
 					>
 						{/* eslint-disable-next-line @next/next/no-img-element -- ローカルのBlob URL/静的アセットのため次のimage最適化は不要 */}
 						<img
-							src={imagePreviewUrl ?? MANUAL_PLACEHOLDER_IMAGE[genre]}
+							src={imagePreviewUrl ?? MANUAL_PLACEHOLDER_IMAGE[SUBTYPE_TO_GENRE[subtype]]}
 							alt=""
 							style={{ width: "100%", height: "100%", objectFit: "cover" }}
 						/>
@@ -161,22 +157,6 @@ function ManualEntryForm() {
 				</div>
 
 				<div className="field">
-					<label htmlFor="genre">ジャンル</label>
-					<select
-						id="genre"
-						className="input"
-						value={genre}
-						onChange={(e) => setGenre(e.target.value as Genre)}
-					>
-						{GENRES.map((g) => (
-							<option key={g} value={g}>
-								{GENRE_LABELS[g]}
-							</option>
-						))}
-					</select>
-				</div>
-
-				<div className="field">
 					<label htmlFor="title">タイトル</label>
 					<input
 						id="title"
@@ -200,23 +180,7 @@ function ManualEntryForm() {
 					/>
 				</div>
 
-				<div className="field">
-					<label htmlFor="status">状態</label>
-					<select
-						id="status"
-						className="input"
-						value={status}
-						onChange={(e) => setStatus(e.target.value as ShelfEntryStatus)}
-					>
-						{STATUSES.map((s) => (
-							<option key={s} value={s}>
-								{STATUS_LABELS[s]}
-							</option>
-						))}
-					</select>
-				</div>
-
-				{error && <p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}
+				{error &&<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}
 
 				<button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
 					{submitting ? "追加中…" : "棚に追加"}

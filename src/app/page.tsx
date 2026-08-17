@@ -6,7 +6,7 @@ import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { listShelfEntries } from "@/db/shelf";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
-import { STATUS_LABELS } from "@/lib/manual-entry";
+import { SUBTYPE_LABELS, SUBTYPE_ORDER, SUBTYPE_SEARCH_PATH, aspectRatioFor } from "@/lib/categories";
 
 export default async function Home() {
 	const { env } = await getCloudflareContext({ async: true });
@@ -28,21 +28,14 @@ export default async function Home() {
 			<div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-6)" }}>
 				<h1 style={{ fontSize: 24, margin: 0 }}>@{session.user.handle}の棚</h1>
 				<div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-2)" }}>
-					<Link href="/search/books" className="btn btn-primary">
-						本を追加
-					</Link>
-					<Link href="/search/music" className="btn btn-primary">
-						曲・アルバムを追加
-					</Link>
-					<Link href="/search/movies" className="btn btn-primary">
-						映画・ドラマを追加
-					</Link>
-					<Link href="/search/anime-manga" className="btn btn-primary">
-						アニメ・マンガを追加
-					</Link>
-					<Link href="/search/games" className="btn btn-primary">
-						ゲームを追加
-					</Link>
+					{/* この追加ボタン群は、PR1bで下部バーの⊕ボタン(カテゴリシート)に集約して
+					    削除する予定。それまでの間、8カテゴリの新しいルートへ到達できるよう
+					    暫定的に残している(引き継ぎ.md 3.5節) */}
+					{SUBTYPE_ORDER.map((subtype) => (
+						<Link key={subtype} href={SUBTYPE_SEARCH_PATH[subtype]} className="btn btn-primary">
+							{SUBTYPE_LABELS[subtype]}を追加
+						</Link>
+					))}
 				</div>
 			</div>
 
@@ -60,8 +53,8 @@ export default async function Home() {
 						}}
 					>
 					{entries.map((entry) => {
-						// アルバムジャケットは正方形が通例のため、音楽ジャンルのみ1:1にする
-						const aspectRatio = entry.genre === "music" ? "1 / 1" : "2 / 3";
+						// アルバムジャケットは正方形が通例のため、音楽のみ1:1にする
+						const aspectRatio = aspectRatioFor(entry.subtype);
 						return (
 						<div key={entry.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
 							{entry.owner_user_id ? (
@@ -91,12 +84,10 @@ export default async function Home() {
 									style={{ aspectRatio, background: "var(--color-accent-100)" }}
 								/>
 							)}
+							{/* ステータス(予定/進行中/完了…)の表示はUIごと廃止した。
+							    ★評価とコメントはPR1bでカテゴリ詳細画面に移す(引き継ぎ.md 3.5節) */}
 							<div style={{ padding: "var(--space-2) var(--space-3)" }}>
 								<p style={{ fontSize: 13, fontWeight: 500, margin: 0 }}>{entry.title}</p>
-								<p className="card-meta" style={{ marginTop: 4 }}>
-									{STATUS_LABELS[entry.status] ?? entry.status}
-									{entry.rating ? ` ・ ${"★".repeat(entry.rating)}${"☆".repeat(5 - entry.rating)}` : ""}
-								</p>
 							</div>
 						</div>
 						);
