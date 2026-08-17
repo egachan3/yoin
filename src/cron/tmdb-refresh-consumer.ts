@@ -108,14 +108,20 @@ async function finalizeDeletion(
     .where("id", "=", record.catalog_entity_id)
     .compile();
 
+  // deletion_status != 'deleted' をガードに入れる。producer側はenqueue済みかどうかを
+  // マーキングしないため、Cronの重複実行やQueueの遅延処理で同じレコードに対し
+  // finalizeDeletionが2回走る可能性がある。ガードなしだと2回目もdeletion_logへの
+  // 重複記録・不要なR2パージが起きる(レビュー指摘)
   const updateSourceRecord = db
     .updateTable("source_records")
     .set({ deletion_status: "deleted", updated_at: now })
     .where("id", "=", record.id)
+    .where("deletion_status", "!=", "deleted")
     .compile();
 
+  let batchResults: D1Result[];
   try {
-    await d1.batch([
+    batchResults = await d1.batch([
       d1.prepare(updateCatalog.sql).bind(...updateCatalog.parameters),
       d1.prepare(updateSourceRecord.sql).bind(...updateSourceRecord.parameters),
     ]);
@@ -123,6 +129,12 @@ async function finalizeDeletion(
     console.error("[tmdb-refresh-consumer] 削除確定の反映に失敗しました", record.id, err);
     return;
   }
+
+  // 上のガードにより対象行が既に削除確定済みだった場合は0件更新になる。
+  // その場合は別の実行が既に削除ログ記録・画像パージまで完了済みのはずなので、
+  // ここで重ねて実行しない
+  const sourceRecordChanges = batchResults[1]?.meta.changes ?? 0;
+  if (sourceRecordChanges === 0) return;
 
   try {
     await db

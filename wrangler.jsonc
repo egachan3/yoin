@@ -36,6 +36,10 @@
 				"queue": "tmdb-refresh",
 				"max_batch_size": 10,
 				"max_batch_timeout": 30,
+				// 通常のリトライはこの機構ではなくCronによる翌日以降の再enqueueに任せる
+				// (tmdb-refresh-consumer.tsは個別メッセージの失敗を握りつぶし常にackする)。
+				// ここのmax_retriesは、バッチハンドラ自体が予期せず例外を投げて
+				// ループを抜けた場合のみ効く安全弁
 				"max_retries": 3
 			}
 		]

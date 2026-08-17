@@ -5,9 +5,14 @@
 
 // @ts-ignore `.open-next/worker.js` はビルド時に生成される
 import { default as handler } from "./.open-next/worker.js";
-import { runTmdbRefreshProducer } from "./src/cron/tmdb-refresh-producer";
+import { runTmdbRefreshProducer, type TmdbRefreshMessage } from "./src/cron/tmdb-refresh-producer";
 import { processTmdbRefreshBatch } from "./src/cron/tmdb-refresh-consumer";
-import type { TmdbRefreshMessage } from "./src/cron/tmdb-refresh-producer";
+
+// 【将来の注意】open-next.config.tsでR2キャッシュ(incrementalCache)やDO Queueを
+// 有効化する場合、.open-next/worker.jsが追加でDOQueueHandler/DOShardedTagCache等を
+// exportするようになる。custom workerはfetch以外の生成済みexportを自動で引き継がないため、
+// 有効化する際はここから同様にre-exportする必要がある
+// (参照: https://opennext.js.org/cloudflare/howtos/custom-worker )
 
 export default {
   fetch: handler.fetch,
