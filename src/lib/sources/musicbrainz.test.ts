@@ -196,8 +196,8 @@ describe("fetchReleaseGroupDurationMs", () => {
     vi.unstubAllGlobals();
   });
 
-  function releaseGroupReleasesResponse(releases: unknown[]) {
-    return JSON.stringify({ id: "rg-mbid", releases });
+  function releaseGroupReleasesResponse(releases: unknown[], firstReleaseDate?: string) {
+    return JSON.stringify({ id: "rg-mbid", "first-release-date": firstReleaseDate, releases });
   }
 
   function releaseLookupResponse(media: unknown[]) {
@@ -269,6 +269,57 @@ describe("fetchReleaseGroupDurationMs", () => {
     const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
 
     expect(result).toBeNull();
+  });
+
+  it("Officialが複数ある場合、first-release-dateと一致するreleaseを選ぶ(デラックス版等の誤選択を回避)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          releaseGroupReleasesResponse(
+            [
+              // 配列の先頭には後年の再発盤(ボーナストラック追加)が来るケース
+              { id: "deluxe-reissue", status: "Official", date: "2024-07-29" },
+              { id: "original-press", status: "Official", date: "2021-01-06" },
+            ],
+            "2021-01-06",
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(releaseLookupResponse([{ tracks: [{ length: 261000, recording: { length: 261000 } }] }])),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    const secondCallUrl = fetchMock.mock.calls[1][0] as string;
+    expect(secondCallUrl).toContain("original-press");
+  });
+
+  it("first-release-dateと一致するreleaseがなければ、Officialの中で最も古いものを選ぶ", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          releaseGroupReleasesResponse(
+            [
+              { id: "later-official", status: "Official", date: "2024-10-23" },
+              { id: "earlier-official", status: "Official", date: "2021-01-06" },
+            ],
+            "1999-01-01", // どのreleaseの日付とも一致しない
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(releaseLookupResponse([{ tracks: [{ length: 261000, recording: { length: 261000 } }] }])),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    const secondCallUrl = fetchMock.mock.calls[1][0] as string;
+    expect(secondCallUrl).toContain("earlier-official");
   });
 
   it("releaseが1件もなければnullを返す", async () => {

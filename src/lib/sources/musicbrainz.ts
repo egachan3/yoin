@@ -214,10 +214,51 @@ export async function fetchCoverArtByRelease(mbid: string): Promise<string | nul
 
 const ReleaseGroupReleasesSchema = z.object({
   id: z.string(),
+  "first-release-date": z.string().optional(),
   releases: z
-    .array(z.object({ id: z.string(), status: z.string().nullable().optional() }))
+    .array(
+      z.object({
+        id: z.string(),
+        status: z.string().nullable().optional(),
+        date: z.string().nullable().optional(),
+      }),
+    )
     .optional(),
 });
+
+type ReleaseSummary = { id: string; status?: string | null; date?: string | null };
+
+/**
+ * release-groupの複数releaseから、収録曲ルックアップに使う代表release1枚を選ぶ。
+ * 同じrelease-groupには「オリジナル盤」「デラックス版(ボーナストラック追加)」
+ * 「後年のリマスター再発盤」等が並立し、単純に配列の先頭やstatus一致だけで選ぶと
+ * ユーザーが想定する曲数・尺と食い違うリスクがある(レビュー指摘)。
+ *
+ * release-group自体が持つfirst-release-date(オリジナル発売日)と日付が一致する
+ * Official releaseを最優先する。一致がなければOfficialの中で最も古い日付のもの、
+ * それも無ければ先頭にフォールバックする。
+ */
+function pickRepresentativeRelease(
+  releases: ReleaseSummary[],
+  firstReleaseDate: string | undefined,
+): ReleaseSummary | undefined {
+  if (releases.length === 0) return undefined;
+
+  const officials = releases.filter((r) => r.status === "Official");
+  const pool = officials.length > 0 ? officials : releases;
+
+  if (firstReleaseDate) {
+    const exactMatch = pool.find((r) => r.date === firstReleaseDate);
+    if (exactMatch) return exactMatch;
+  }
+
+  const dated = pool.filter((r): r is ReleaseSummary & { date: string } => !!r.date);
+  if (dated.length > 0) {
+    return dated.reduce((earliest, r) => (r.date < earliest.date ? r : earliest));
+  }
+
+  return pool[0];
+}
 
 const ReleaseTrackSchema = z.object({
   length: z.number().nullable().optional(),
@@ -235,9 +276,8 @@ const ReleaseLookupSchema = z.object({
  * トラック情報を持たないため、(1)releases一覧から代表releaseを選ぶ→
  * (2)そのreleaseのtrack長をinc=recordingsで取得、の2段階が必要。
  *
- * 代表releaseは"Official"ステータスのものを優先する(存在しなければ先頭)。
- * 複数版が混在するrelease-groupで、リイシュー盤・ボーナストラック版等と
- * 曲数が食い違う懸念を減らすため。
+ * 代表releaseの選定はpickRepresentativeRelease参照。オリジナル発売日と一致する
+ * Official releaseを優先し、リイシュー盤・デラックス版等と曲数が食い違う懸念を減らす。
  *
  * 1曲でも長さが不明(length欠落)なら合計を出さずnullを返す。過小な合計値を
  * 「確定した推定消費時間」として提示しないため(book-extentの1ページ非対応
@@ -255,9 +295,11 @@ export async function fetchReleaseGroupDurationMs(mbid: string): Promise<number 
     const rgParsed = ReleaseGroupReleasesSchema.safeParse(rgJson);
     if (!rgParsed.success) return null;
 
-    const releases = rgParsed.data.releases ?? [];
-    if (releases.length === 0) return null;
-    const representativeRelease = releases.find((r) => r.status === "Official") ?? releases[0];
+    const representativeRelease = pickRepresentativeRelease(
+      rgParsed.data.releases ?? [],
+      rgParsed.data["first-release-date"],
+    );
+    if (!representativeRelease) return null;
 
     const relUrl = new URL(`${MB_API_BASE}/release/${encodeURIComponent(representativeRelease.id)}`);
     relUrl.searchParams.set("fmt", "json");
