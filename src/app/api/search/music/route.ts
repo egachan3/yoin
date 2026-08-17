@@ -31,7 +31,7 @@ const COVER_ART_LOOKUP_LIMIT = 5;
  * iTunes由来の候補には画像を一切付けない(Promo Content規約上アートワーク不使用の
  * 決定に従う。ItunesCandidateの型自体がアートワークを持てない設計と対になる)。
  */
-async function attachCoverArt(candidates: MusicCandidate[]): Promise<(MusicCandidate & { imageUrl: string | null })[]> {
+export async function attachCoverArt(candidates: MusicCandidate[]): Promise<(MusicCandidate & { imageUrl: string | null })[]> {
   const targets = candidates.slice(0, COVER_ART_LOOKUP_LIMIT);
   const rest = candidates.slice(COVER_ART_LOOKUP_LIMIT);
 
