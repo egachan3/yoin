@@ -113,3 +113,36 @@ export async function verifyById(id: string, entityType: ItunesEntityType): Prom
   if (!track) return null;
   return toCandidate(track, entityType);
 }
+
+/**
+ * アルバム(collection)に収録された曲の長さを合計し、推定消費時間を算出する。
+ * lookup APIにentity=songを付けると、先頭に collection 本体・以降に
+ * その収録曲(track)が並んで返る仕様を利用する。
+ *
+ * 1曲でも長さ(trackTimeMillis)が欠落していれば合計を出さずnullを返す
+ * (musicbrainz.tsのfetchReleaseGroupDurationMsと同じ考え方: 過小な
+ * 合計値を確定した推定消費時間として提示しない)。
+ */
+export async function fetchAlbumDurationMs(collectionId: string): Promise<number | null> {
+  const url = new URL(ITUNES_LOOKUP_BASE);
+  url.searchParams.set("id", collectionId);
+  url.searchParams.set("entity", "song");
+
+  try {
+    const res = await itunesFetch(url.toString());
+    if (!res.ok) return null;
+    const json: unknown = await res.json();
+    const parsed = SearchResponseSchema.parse(json);
+    const tracks = parsed.results.filter((r) => r.wrapperType === "track");
+    if (tracks.length === 0) return null;
+
+    let totalMs = 0;
+    for (const track of tracks) {
+      if (track.trackTimeMillis === undefined) return null;
+      totalMs += track.trackTimeMillis;
+    }
+    return totalMs;
+  } catch {
+    return null;
+  }
+}

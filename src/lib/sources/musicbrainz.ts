@@ -211,3 +211,75 @@ export async function fetchCoverArtByReleaseGroup(mbid: string): Promise<string 
 export async function fetchCoverArtByRelease(mbid: string): Promise<string | null> {
   return fetchCoverArt("release", mbid);
 }
+
+const ReleaseGroupReleasesSchema = z.object({
+  id: z.string(),
+  releases: z
+    .array(z.object({ id: z.string(), status: z.string().nullable().optional() }))
+    .optional(),
+});
+
+const ReleaseTrackSchema = z.object({
+  length: z.number().nullable().optional(),
+  recording: z.object({ length: z.number().nullable().optional() }).optional(),
+});
+
+const ReleaseLookupSchema = z.object({
+  id: z.string(),
+  media: z.array(z.object({ tracks: z.array(ReleaseTrackSchema).optional() })).optional(),
+});
+
+/**
+ * release-group(アルバム)に紐づく代表release1枚のtrack長を合計し、アルバムの
+ * 推定消費時間を算出する。release-group自体は複数releaseを束ねる抽象概念で
+ * トラック情報を持たないため、(1)releases一覧から代表releaseを選ぶ→
+ * (2)そのreleaseのtrack長をinc=recordingsで取得、の2段階が必要。
+ *
+ * 代表releaseは"Official"ステータスのものを優先する(存在しなければ先頭)。
+ * 複数版が混在するrelease-groupで、リイシュー盤・ボーナストラック版等と
+ * 曲数が食い違う懸念を減らすため。
+ *
+ * 1曲でも長さが不明(length欠落)なら合計を出さずnullを返す。過小な合計値を
+ * 「確定した推定消費時間」として提示しないため(book-extentの1ページ非対応
+ * トークン除外と同じ考え方: 不確実な値を確定値として出さない)。
+ */
+export async function fetchReleaseGroupDurationMs(mbid: string): Promise<number | null> {
+  try {
+    const rgUrl = new URL(`${MB_API_BASE}/release-group/${encodeURIComponent(mbid)}`);
+    rgUrl.searchParams.set("fmt", "json");
+    rgUrl.searchParams.set("inc", "releases");
+
+    const rgRes = await mbFetch(rgUrl.toString());
+    if (!rgRes.ok) return null;
+    const rgJson: unknown = await rgRes.json();
+    const rgParsed = ReleaseGroupReleasesSchema.safeParse(rgJson);
+    if (!rgParsed.success) return null;
+
+    const releases = rgParsed.data.releases ?? [];
+    if (releases.length === 0) return null;
+    const representativeRelease = releases.find((r) => r.status === "Official") ?? releases[0];
+
+    const relUrl = new URL(`${MB_API_BASE}/release/${encodeURIComponent(representativeRelease.id)}`);
+    relUrl.searchParams.set("fmt", "json");
+    relUrl.searchParams.set("inc", "recordings");
+
+    const relRes = await mbFetch(relUrl.toString());
+    if (!relRes.ok) return null;
+    const relJson: unknown = await relRes.json();
+    const relParsed = ReleaseLookupSchema.safeParse(relJson);
+    if (!relParsed.success) return null;
+
+    const tracks = (relParsed.data.media ?? []).flatMap((m) => m.tracks ?? []);
+    if (tracks.length === 0) return null;
+
+    let totalMs = 0;
+    for (const track of tracks) {
+      const length = track.length ?? track.recording?.length ?? null;
+      if (length === null) return null;
+      totalMs += length;
+    }
+    return totalMs;
+  } catch {
+    return null;
+  }
+}

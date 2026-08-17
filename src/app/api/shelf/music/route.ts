@@ -4,8 +4,8 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { findOrCreateMusicCatalogEntity, type MusicSourceCandidate } from "@/db/catalog";
-import { verifyRecordingById, verifyReleaseGroupById } from "@/lib/sources/musicbrainz";
-import { verifyById as verifyItunesById } from "@/lib/sources/itunes";
+import { verifyRecordingById, verifyReleaseGroupById, fetchReleaseGroupDurationMs } from "@/lib/sources/musicbrainz";
+import { verifyById as verifyItunesById, fetchAlbumDurationMs } from "@/lib/sources/itunes";
 
 // sourceId/entityTypeのみを「再照会のヒント」として受け取る。title/artist等は
 // クライアントから受け取らない(booksのverifyBookCandidateと同じ考え方: 再照会
@@ -65,11 +65,17 @@ export async function POST(request: Request) {
 
   const db = createDb(env.DB);
 
-  // 曲(recording/song)はlengthMsが取れるため推定消費時間を算出する。
-  // アルバム(release-group/album)は合計時間の算出に収録曲ごとの追加ルックアップが
-  // 必要になるため今回はスコープ外とし、duration_pending=1(将来埋まり得る)に倒す
-  // (書籍でextentがパースできなかった場合と同じ区分。セクション5.4参照)
-  const lengthMs = candidate.lengthMs;
+  // 曲(recording/song)は検索結果のlengthMsをそのまま使う。アルバム(release-group/album)は
+  // 検索結果に合計時間を持たないため、収録曲ごとの長さを追加ルックアップして合計する
+  // (音楽PR #3では意図的にスコープ外にした部分。1曲でも長さが取れなければ合計を出さず
+  // nullのまま扱う。過小な合計値を確定した推定消費時間として提示しないため)
+  let lengthMs = candidate.lengthMs;
+  if (lengthMs === null && parsed.data.entityType === "album") {
+    lengthMs =
+      candidate.source === "musicbrainz"
+        ? await fetchReleaseGroupDurationMs(candidate.sourceId)
+        : await fetchAlbumDurationMs(candidate.sourceId);
+  }
   const estimatedSeconds = lengthMs !== null ? Math.round(lengthMs / 1000) : null;
 
   const now = Math.floor(Date.now() / 1000);

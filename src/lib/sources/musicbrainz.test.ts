@@ -6,6 +6,7 @@ import {
   verifyReleaseGroupById,
   fetchCoverArtByReleaseGroup,
   fetchCoverArtByRelease,
+  fetchReleaseGroupDurationMs,
 } from "./musicbrainz";
 
 // 実際のMusicBrainz recording検索レスポンス形状を模したサンプル
@@ -185,6 +186,103 @@ describe("Cover Art Archive", () => {
     );
 
     const result = await fetchCoverArtByReleaseGroup("c1d2e3f4-0000-0000-0000-000000000002");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchReleaseGroupDurationMs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function releaseGroupReleasesResponse(releases: unknown[]) {
+    return JSON.stringify({ id: "rg-mbid", releases });
+  }
+
+  function releaseLookupResponse(media: unknown[]) {
+    return JSON.stringify({ id: "release-mbid", media });
+  }
+
+  it("Officialステータスのreleaseを優先し、収録曲の長さを合計する", async () => {
+    const fetchMock = vi
+      .fn()
+      // 1回目: release-group lookup(inc=releases)。Official以外が先に並ぶケース
+      .mockResolvedValueOnce(
+        new Response(
+          releaseGroupReleasesResponse([
+            { id: "bootleg-release", status: "Bootleg" },
+            { id: "official-release", status: "Official" },
+          ]),
+        ),
+      )
+      // 2回目: 選ばれたofficial-releaseのtrack一覧
+      .mockResolvedValueOnce(
+        new Response(
+          releaseLookupResponse([
+            {
+              tracks: [
+                { length: 261000, recording: { length: 261000 } },
+                { length: 200000, recording: { length: 200000 } },
+              ],
+            },
+          ]),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    expect(result).toBe(261000 + 200000);
+    // 2回目の呼び出し先URLがofficial-releaseであることを確認
+    const secondCallUrl = fetchMock.mock.calls[1][0] as string;
+    expect(secondCallUrl).toContain("official-release");
+  });
+
+  it("track.lengthが欠落していればrecording.lengthにフォールバックする", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(releaseGroupReleasesResponse([{ id: "release-1", status: "Official" }])))
+      .mockResolvedValueOnce(
+        new Response(releaseLookupResponse([{ tracks: [{ length: null, recording: { length: 180000 } }] }])),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    expect(result).toBe(180000);
+  });
+
+  it("1曲でも長さが不明なら合計を出さずnullを返す(過小評価の回避)", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(releaseGroupReleasesResponse([{ id: "release-1", status: "Official" }])))
+      .mockResolvedValueOnce(
+        new Response(
+          releaseLookupResponse([
+            { tracks: [{ length: 261000, recording: { length: 261000 } }, { length: null, recording: { length: null } }] },
+          ]),
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    expect(result).toBeNull();
+  });
+
+  it("releaseが1件もなければnullを返す", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(releaseGroupReleasesResponse([]))));
+
+    const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
+
+    expect(result).toBeNull();
+  });
+
+  it("ネットワークエラーはnullを返す(取得失敗を許容する)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("network error")));
+
+    const result = await fetchReleaseGroupDurationMs("c1d2e3f4-0000-0000-0000-000000000002");
 
     expect(result).toBeNull();
   });
