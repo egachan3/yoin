@@ -15,8 +15,13 @@ import { checkRateLimit } from "@/lib/rate-limit";
 const MAGIC_LINK_IP_RATE_LIMIT = { windowSeconds: 60, maxRequests: 5 };
 const MAGIC_LINK_EMAIL_RATE_LIMIT = { windowSeconds: 300, maxRequests: 3 };
 
+// パス判定は完全一致にする(レビュー指摘)。endsWith等の緩い一致だと、
+// better-auth側のルーティングが将来的に末尾スラッシュ等を正規化するようになった場合に
+// レート制限だけをすり抜けられる経路が生まれうる。現状は末尾スラッシュ付きだと
+// better-auth側が404を返す(正規化しない)ことを実機確認済みだが、ホワイトリスト的な
+// 厳密一致にしておく方が安全
 function isMagicLinkSignInRequest(request: Request): boolean {
-  return request.method === "POST" && new URL(request.url).pathname.endsWith("/sign-in/magic-link");
+  return request.method === "POST" && new URL(request.url).pathname === "/api/auth/sign-in/magic-link";
 }
 
 // D1バインディングはリクエストごとにしか取れないため、authインスタンスも
