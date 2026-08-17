@@ -43,29 +43,38 @@ export default async function Home() {
 					<Link href="/search/games" className="btn btn-primary">
 						ゲームを追加
 					</Link>
-					<Link href="/entries/new" className="btn btn-secondary">
-						見つからない作品を手動で追加
-					</Link>
 				</div>
 			</div>
 
 			{entries.length === 0 ? (
 				<p className="text-muted">まだ何も追加されていません。「本を追加」から最初の1冊を記録してみましょう。</p>
 			) : (
-				<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "var(--space-3)" }}>
-					{entries.map((entry) => (
+				<div
+						style={{
+							display: "grid",
+							gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+							gap: "var(--space-3)",
+							// 既定のstretchのままだと、同じ行に2:3(書籍等)と1:1(音楽)が混在した際、
+							// 背の高い方に合わせて全カードが伸び、画像とテキストの間に空白ができる
+							alignItems: "start",
+						}}
+					>
+					{entries.map((entry) => {
+						// アルバムジャケットは正方形が通例のため、音楽ジャンルのみ1:1にする
+						const aspectRatio = entry.genre === "music" ? "1 / 1" : "2 / 3";
+						return (
 						<div key={entry.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
 							{entry.owner_user_id ? (
 								// 手動入力(owner_user_id非null)はR2プロキシの対象外
 								// (image-proxy.tsのresolveImageSourceが構造的に除外している)。
-								// primary_image_refにはpublic/placeholders/配下の静的アセットの
-								// パスがそのまま入っているため、プロキシを経由せず直接参照する
-								// eslint-disable-next-line @next/next/no-img-element -- publicの静的アセットのため次のimage最適化は不要
+								// primary_image_refにはpublic/placeholders/配下の静的アセットのパス、
+								// またはユーザーがアップロードした画像を返す認証付きルートが入る
+								// eslint-disable-next-line @next/next/no-img-element -- 静的アセット/自ドメインのため次のimage最適化は不要
 								<img
 									src={entry.primary_image_ref ?? undefined}
 									alt={entry.title}
 									loading="lazy"
-									style={{ display: "block", width: "100%", aspectRatio: "2 / 3", objectFit: "cover" }}
+									style={{ display: "block", width: "100%", aspectRatio, objectFit: "cover" }}
 								/>
 							) : entry.primary_image_ref ? (
 								// eslint-disable-next-line @next/next/no-img-element -- R2プロキシ配下の自ドメイン画像のため次のimage最適化(next/image)の適用は別途検討
@@ -73,13 +82,13 @@ export default async function Home() {
 									src={`/img/${entry.catalog_id}/grid`}
 									alt={entry.title}
 									loading="lazy"
-									style={{ display: "block", width: "100%", aspectRatio: "2 / 3", objectFit: "cover" }}
+									style={{ display: "block", width: "100%", aspectRatio, objectFit: "cover" }}
 								/>
 							) : (
 								<div
 									role="img"
 									aria-label={entry.title}
-									style={{ aspectRatio: "2 / 3", background: "var(--color-accent-100)" }}
+									style={{ aspectRatio, background: "var(--color-accent-100)" }}
 								/>
 							)}
 							<div style={{ padding: "var(--space-2) var(--space-3)" }}>
@@ -90,7 +99,8 @@ export default async function Home() {
 								</p>
 							</div>
 						</div>
-					))}
+						);
+					})}
 				</div>
 			)}
 

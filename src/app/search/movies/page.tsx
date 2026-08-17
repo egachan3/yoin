@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 interface MovieCandidate {
@@ -84,6 +85,12 @@ export default function MovieSearchPage() {
 					検索
 				</button>
 			</form>
+
+			<div style={{ textAlign: "center", marginBottom: "var(--space-6)" }}>
+				<Link href={`/entries/new?genre=movie_tv&title=${encodeURIComponent(query)}`} className="btn btn-ghost">
+					手動で追加
+				</Link>
+			</div>
 
 			{status === "error" && <p style={{ color: "var(--color-accent-800)" }}>検索に失敗しました。</p>}
 
