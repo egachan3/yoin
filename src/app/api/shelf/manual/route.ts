@@ -20,6 +20,11 @@ const AddManualEntrySchema = z.object({
 // 改造されたクライアント・別クライアントからの直接呼び出しに備えてサーバー側でも
 // 上限を設ける(圧縮後は通常数百KB程度に収まるため、これはあくまで防御的な上限)
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+// multipart境界やテキストフィールド分の余裕を見て、画像上限より少し大きく取る。
+// request.formData()自体がボディ全体をパース・バッファリングするため、
+// 巨大なリクエストはこのチェックでパース前に弾く(レビュー指摘: パース後の
+// File.sizeチェックだけだとパース自体の負荷・メモリ消費を防げない)
+const MAX_REQUEST_BYTES = MAX_IMAGE_BYTES + 64 * 1024;
 const ALLOWED_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(request: Request) {
@@ -29,6 +34,11 @@ export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const contentLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return Response.json({ error: "invalid_body", message: "画像のサイズが大きすぎます。" }, { status: 422 });
   }
 
   const formData = await request.formData().catch(() => null);
