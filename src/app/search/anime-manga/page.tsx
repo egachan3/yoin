@@ -26,6 +26,10 @@ export default function AnimeMangaSearchPage() {
 	const router = useRouter();
 	const [mediaType, setMediaType] = useState<MediaType>("anime");
 	const [query, setQuery] = useState("");
+	// 実際に検索を実行した時点のクエリ。「もっと探す」はこちらを使う(入力欄の
+	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
+	// 新しい文字列を古い検索結果に追記してしまうバグになる)
+	const [searchedQuery, setSearchedQuery] = useState("");
 	const [candidates, setCandidates] = useState<MalCandidate[]>([]);
 	const [nextOffset, setNextOffset] = useState<number | null>(null);
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
@@ -45,12 +49,12 @@ export default function AnimeMangaSearchPage() {
 		return `${c.mediaType}:${c.malId}`;
 	}
 
-	async function runSearch(offset: number, append: boolean, targetType: MediaType) {
-		if (!query.trim()) return;
+	async function runSearch(offset: number, append: boolean, targetType: MediaType, targetQuery: string) {
+		if (!targetQuery.trim()) return;
 		setStatus("loading");
 		setSearchError(null);
 		const url = new URL("/api/search/anime-manga", window.location.origin);
-		url.searchParams.set("q", query);
+		url.searchParams.set("q", targetQuery);
 		url.searchParams.set("type", targetType);
 		url.searchParams.set("offset", String(offset));
 
@@ -97,7 +101,8 @@ export default function AnimeMangaSearchPage() {
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		await runSearch(0, false, mediaType);
+		setSearchedQuery(query);
+		await runSearch(0, false, mediaType, query);
 	}
 
 	function handleMediaTypeChange(next: MediaType) {
@@ -218,7 +223,7 @@ export default function AnimeMangaSearchPage() {
 					type="button"
 					className="btn btn-ghost btn-block"
 					style={{ marginTop: "var(--space-4)" }}
-					onClick={() => runSearch(nextOffset, true, mediaType)}
+					onClick={() => runSearch(nextOffset, true, mediaType, searchedQuery)}
 					disabled={status === "loading"}
 				>
 					{status === "loading" ? "読み込み中…" : "もっと探す"}
