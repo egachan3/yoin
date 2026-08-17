@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { searchItunes, verifyById } from "./itunes";
+import { searchItunes, verifyById, fetchAlbumDurationMs } from "./itunes";
 
 const SAMPLE_TRACK = {
   wrapperType: "track",
@@ -115,6 +115,72 @@ describe("verifyById", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([]))));
 
     const result = await verifyById("存在しないid", "song");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("fetchAlbumDurationMs", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("収録曲の長さを合計する(先頭のcollection本体は無視する)", async () => {
+    const track2 = { ...SAMPLE_TRACK, trackId: 2, trackTimeMillis: 200000 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([SAMPLE_COLLECTION, SAMPLE_TRACK, track2]))),
+    );
+
+    const result = await fetchAlbumDurationMs("9876543210");
+
+    expect(result).toBe(261000 + 200000);
+  });
+
+  it("entity=songパラメータを付与する", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([SAMPLE_COLLECTION, SAMPLE_TRACK])));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchAlbumDurationMs("9876543210");
+
+    const calledUrl = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(calledUrl.searchParams.get("entity")).toBe("song");
+  });
+
+  it("1曲でも長さが欠落していれば合計を出さずnullを返す(過小評価の回避)", async () => {
+    const trackWithoutLength = { ...SAMPLE_TRACK, trackId: 2, trackTimeMillis: undefined };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        new Response(buildSearchResponse([SAMPLE_COLLECTION, SAMPLE_TRACK, trackWithoutLength])),
+      ),
+    );
+
+    const result = await fetchAlbumDurationMs("9876543210");
+
+    expect(result).toBeNull();
+  });
+
+  it("収録曲が0件ならnullを返す", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(buildSearchResponse([SAMPLE_COLLECTION]))));
+
+    const result = await fetchAlbumDurationMs("9876543210");
+
+    expect(result).toBeNull();
+  });
+
+  it("ネットワークエラーはnullを返す(取得失敗を許容する)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(new Error("network error")));
+
+    const result = await fetchAlbumDurationMs("9876543210");
+
+    expect(result).toBeNull();
+  });
+
+  it("HTTPエラーはnullを返す", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(null, { status: 500 })));
+
+    const result = await fetchAlbumDurationMs("9876543210");
 
     expect(result).toBeNull();
   });
