@@ -8,6 +8,8 @@ import { CategorySheet } from "./CategorySheet";
 // バー全体(浮いた余白込み)の高さ(px)。layout.tsx側の本文paddingBottomと
 // 同じ値を参照させることで、どちらか一方だけ変更してズレる事故を防ぐ
 export const BOTTOM_NAV_HEIGHT = 88;
+// ピルの内側に収まるよう、アイコン22px→20px・ラベル11px→10pxへ少し縮小した
+// (Shelf風のピル構造に変更した際、3タブ分のラベルがピル内で詰まったため)
 const PILL_HEIGHT = 56;
 
 const TABS = [
@@ -78,7 +80,13 @@ export function BottomNav() {
 					right: 0,
 					bottom: 0,
 					zIndex: 30,
-					height: BOTTOM_NAV_HEIGHT,
+					// BOTTOM_NAV_HEIGHTは「セーフエリアを除いた実コンテンツの高さ」。
+					// boxSizing:border-box + paddingBottom:env(...)のままheightを
+					// BOTTOM_NAV_HEIGHT固定にすると、セーフエリア分がピルの表示領域を
+					// 圧迫してホームインジケータ搭載機でピルがはみ出す(レビュー指摘)。
+					// layout.tsx側のpaddingBottom計算式と同じ式にして、コンテナ全体の
+					// 高さがちょうど「BOTTOM_NAV_HEIGHT + セーフエリア分」になるようにする
+					height: `calc(${BOTTOM_NAV_HEIGHT}px + env(safe-area-inset-bottom))`,
 					boxSizing: "border-box",
 					display: "flex",
 					alignItems: "center",
