@@ -4,6 +4,7 @@
 // 参照: 引き継ぎ.md 3.5節「UI全面刷新の仕様」
 
 import type { Genre, Subtype } from "@/db/schema";
+import type { ShelfEntryRow } from "@/db/shelf";
 
 export const SUBTYPE_LABELS: Record<Subtype, string> = {
   book: "本",
@@ -74,4 +75,57 @@ export function isSubtype(value: unknown): value is Subtype {
   // "constructor"や"toString"がsubtypeとして通ってしまう。
   // カテゴリ定義の情報源をSUBTYPE_ORDERに一本化する意味でも、こちらで判定する
   return typeof value === "string" && (SUBTYPE_ORDER as readonly string[]).includes(value);
+}
+
+/**
+ * ⊕シートの各カテゴリに添えるアイコン。public/icons/配下に用意した6種類の
+ * 画像を、テレビは「ドラマ・アニメ」、本は「本・マンガ」で共有している
+ * (ユーザーが用意した画像がこの6分類だったため)。
+ */
+export const SUBTYPE_ICON: Record<Subtype, string> = {
+  book: "/icons/book.png",
+  album: "/icons/album.png",
+  song: "/icons/song.png",
+  movie: "/icons/movie.png",
+  tv: "/icons/tv.png",
+  anime: "/icons/anime.png",
+  manga: "/icons/manga.png",
+  game: "/icons/game.png",
+};
+
+export interface CategorySummary {
+  subtype: Subtype;
+  count: number;
+  /** 棚トップのカードに重ねて表示する、直近追加分(最大3件)の画像・タイトル */
+  recentEntries: ShelfEntryRow[];
+}
+
+const RECENT_ENTRIES_PER_CATEGORY = 3;
+
+/**
+ * 全ジャンル横断のエントリ一覧(listShelfEntries、added_at降順)を、
+ * subtypeごとに束ねて棚トップのカード用データを作る。
+ * 登録が1件もないカテゴリは結果に含めない(棚は「登録があるカテゴリだけ
+ * 表示する」方針のため、引き継ぎ.md 3.5節)。
+ */
+export function summarizeByCategory(entries: readonly ShelfEntryRow[]): CategorySummary[] {
+  const bySubtype = new Map<Subtype, ShelfEntryRow[]>();
+  for (const entry of entries) {
+    const list = bySubtype.get(entry.subtype);
+    if (list) {
+      list.push(entry);
+    } else {
+      bySubtype.set(entry.subtype, [entry]);
+    }
+  }
+
+  return SUBTYPE_ORDER.filter((subtype) => bySubtype.has(subtype)).map((subtype) => {
+    const list = bySubtype.get(subtype) as ShelfEntryRow[];
+    return {
+      subtype,
+      count: list.length,
+      // entriesは呼び出し元でadded_at降順ソート済みの前提(listShelfEntries参照)
+      recentEntries: list.slice(0, RECENT_ENTRIES_PER_CATEGORY),
+    };
+  });
 }
