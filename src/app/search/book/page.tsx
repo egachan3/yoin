@@ -139,7 +139,7 @@ export default function BookSearchPage() {
 								onClick={() => handleAdd(c)}
 								disabled={addingId === c.ndlBibId}
 							>
-								{addingId === c.ndlBibId ? "追加中…" : "棚に追加"}
+								{addingId === c.ndlBibId ? "追加中…" : "コレクションに追加"}
 							</button>
 							{addError?.ndlBibId === c.ndlBibId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>

@@ -41,7 +41,7 @@ export default function OnboardingPage() {
 		<main style={{ maxWidth: 360, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<h1 style={{ fontSize: 24, marginBottom: "var(--space-2)" }}>ハンドルを決める</h1>
 			<p className="text-muted">
-				棚の公開URLに使われます。半角英数字とアンダースコアのみ、3〜20文字。
+				コレクションの公開URLに使われます。半角英数字とアンダースコアのみ、3〜20文字。
 				<br />
 				<strong style={{ fontWeight: 500 }}>一度設定すると変更できません。</strong>
 			</p>

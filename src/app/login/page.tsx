@@ -24,7 +24,7 @@ export default function LoginPage() {
 	return (
 		<main style={{ maxWidth: 360, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<h1 style={{ fontSize: 28, marginBottom: "var(--space-4)" }}>Yoin</h1>
-			<p className="text-muted">観た・読んだ・聴いたものの余韻を、棚に並べる。</p>
+			<p className="text-muted">観た・読んだ・聴いたものの余韻を、コレクションに並べる。</p>
 
 			{status === "sent" ? (
 				<p style={{ marginTop: "var(--space-6)" }}>

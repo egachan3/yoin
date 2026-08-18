@@ -148,7 +148,7 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 								onClick={() => handleAdd(c)}
 								disabled={addingId === c.sourceId}
 							>
-								{addingId === c.sourceId ? "追加中…" : "棚に追加"}
+								{addingId === c.sourceId ? "追加中…" : "コレクションに追加"}
 							</button>
 							{addError?.sourceId === c.sourceId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
