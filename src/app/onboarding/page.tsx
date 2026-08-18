@@ -43,7 +43,7 @@ export default function OnboardingPage() {
 			<p className="text-muted">
 				コレクションの公開URLに使われます。半角英数字とアンダースコアのみ、3〜20文字。
 				<br />
-				<strong style={{ fontWeight: 500 }}>一度設定すると変更できません。</strong>
+				設定後もプロフィールの設定画面から変更できます。
 			</p>
 
 			<form onSubmit={handleSubmit} style={{ marginTop: "var(--space-6)", display: "grid", gap: "var(--space-3)" }}>
