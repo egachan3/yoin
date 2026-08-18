@@ -31,13 +31,44 @@ export default async function Home() {
 	const categories = summarizeByCategory(entries, counts);
 
 	return (
-		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
-			<h1 style={{ fontSize: 24, marginBottom: "var(--space-6)" }}>@{session.user.handle}の棚</h1>
+		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-2)" }}>
+			<h1 style={{ fontSize: 24, marginBottom: "var(--space-6)" }}>@{session.user.handle}のコレクション</h1>
+
+			{/* ================================================================
+			    【サイズ確認用の仮枠、実装ではない】
+			    余白調整の基準として、565:900の縦横比だけの単純な色ブロックを
+			    実カードの上に並べる。確認が終わったらこのブロックごと削除する。
+			    ================================================================ */}
+			<div
+				style={{
+					display: "grid",
+					gridTemplateColumns: "repeat(2, 1fr)",
+					gap: "var(--space-2)",
+					marginBottom: "var(--space-6)",
+				}}
+			>
+				{["book", "album", "song", "movie", "tv", "anime"].map((subtype) => (
+					<div
+						key={subtype}
+						style={{
+							aspectRatio: "565 / 900",
+							background: "var(--color-accent-100)",
+							borderRadius: "var(--radius-md)",
+							display: "flex",
+							alignItems: "flex-end",
+							padding: "var(--space-3)",
+						}}
+					>
+						<p style={{ margin: 0, fontWeight: 500 }}>{SUBTYPE_LABELS[subtype as keyof typeof SUBTYPE_LABELS]}</p>
+					</div>
+				))}
+			</div>
+			{/* ================================================================ */}
 
 			{categories.length === 0 ? (
 				<p className="text-muted">まだ何も追加されていません。右下の+から最初の1件を記録してみましょう。</p>
 			) : (
-				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-3)" }}>
+				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-2)" }}>
 					{categories.map((category) => (
 						<CategoryCard key={category.subtype} category={category} />
 					))}

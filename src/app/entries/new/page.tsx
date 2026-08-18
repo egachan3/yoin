@@ -103,7 +103,7 @@ function ManualEntryForm() {
 					手動で追加するには、追加したいカテゴリの検索画面から「手動で追加」を選んでください。
 				</p>
 				<Link href="/" className="btn btn-primary btn-block">
-					棚に戻る
+					コレクションに戻る
 				</Link>
 			</main>
 		);
@@ -202,7 +202,7 @@ function ManualEntryForm() {
 				{error && <p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}
 
 				<button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
-					{submitting ? "追加中…" : "棚に追加"}
+					{submitting ? "追加中…" : "コレクションに追加"}
 				</button>
 			</form>
 		</main>

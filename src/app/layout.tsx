@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
 	title: "Yoin",
-	description: "観た・読んだ・聴いたものの余韻を、棚に並べる。",
+	description: "観た・読んだ・聴いたものの余韻を、コレクションに並べる。",
 };
 
 export default function RootLayout({

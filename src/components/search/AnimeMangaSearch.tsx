@@ -196,7 +196,7 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 									onClick={() => handleAdd(c)}
 									disabled={addingKey === key}
 								>
-									{addingKey === key ? "追加中…" : "棚に追加"}
+									{addingKey === key ? "追加中…" : "コレクションに追加"}
 								</button>
 								{addError?.key === key && (
 									<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>

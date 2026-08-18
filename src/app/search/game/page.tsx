@@ -137,7 +137,7 @@ export default function GameSearchPage() {
 								onClick={() => handleAdd(c)}
 								disabled={addingId === c.igdbId}
 							>
-								{addingId === c.igdbId ? "追加中…" : "棚に追加"}
+								{addingId === c.igdbId ? "追加中…" : "コレクションに追加"}
 							</button>
 							{addError?.igdbId === c.igdbId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>

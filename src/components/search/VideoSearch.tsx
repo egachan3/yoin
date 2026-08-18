@@ -113,7 +113,7 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 								onClick={() => handleAdd(c)}
 								disabled={addingId === c.tmdbId}
 							>
-								{addingId === c.tmdbId ? "追加中…" : "棚に追加"}
+								{addingId === c.tmdbId ? "追加中…" : "コレクションに追加"}
 							</button>
 							{addError?.tmdbId === c.tmdbId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
