@@ -79,3 +79,25 @@ export async function listShelfEntriesBySubtype(db: Kysely<Database>, userId: st
     .orderBy("shelf_entries.added_at", "desc")
     .execute();
 }
+
+/**
+ * added_atが[startInclusive, endExclusive)の範囲にある棚エントリ一覧
+ * (カレンダー画面用)。範囲はjstMonthRange()で日本時間の月初〜翌月初を
+ * 渡す想定。1ヶ月分なので件数の上限は設けていない。
+ */
+export async function listShelfEntriesByAddedRange(
+  db: Kysely<Database>,
+  userId: string,
+  startInclusive: number,
+  endExclusive: number,
+) {
+  return db
+    .selectFrom("shelf_entries")
+    .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
+    .select(SHELF_ENTRY_SELECT)
+    .where("shelf_entries.user_id", "=", userId)
+    .where("shelf_entries.added_at", ">=", startInclusive)
+    .where("shelf_entries.added_at", "<", endExclusive)
+    .orderBy("shelf_entries.added_at", "desc")
+    .execute();
+}
