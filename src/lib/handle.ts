@@ -1,8 +1,8 @@
 // ハンドルの正規化・検証ロジック
 // 参照: shelf-type-app-spec.md セクション11「handleの設計」
 //
-// MVPではhandleは不変(変更機能を作らない)。一意制約はhandle_normalizedに張り、
-// 表示用のhandle自体には張らない(大文字小文字・元の見た目を保持するため)。
+// 一意制約はhandle_normalizedに張り、表示用のhandle自体には張らない
+// (大文字小文字・元の見た目を保持するため)。変更はプロフィール設定の専用APIを通す。
 
 const RESERVED_HANDLES = new Set([
   "admin",
