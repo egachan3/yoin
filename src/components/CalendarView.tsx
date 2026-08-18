@@ -64,6 +64,16 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 							key={day.dateKey}
 							type="button"
 							onClick={() => setSelectedKey(isSelected ? null : day.dateKey)}
+							// 色(枠線)だけでの「今日」表現は色弱・低視力のユーザーに
+							// 判別しづらいため、下のドット(視覚)とaria-current(音声)を
+							// 併用する。件数バッジも読み上げでは数字だけでは伝わらないため
+							// aria-labelで明示する(レビュー指摘)
+							aria-current={isToday ? "date" : undefined}
+							aria-label={
+								day.entries.length > 0
+									? `${day.date}日、${day.entries.length}件の記録`
+									: `${day.date}日、記録なし`
+							}
 							style={{
 								position: "relative",
 								aspectRatio: "1 / 1",
@@ -98,6 +108,20 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 							>
 								{day.date}
 							</span>
+							{isToday && (
+								<span
+									aria-hidden="true"
+									style={{
+										position: "absolute",
+										top: 4,
+										right: 4,
+										width: 6,
+										height: 6,
+										borderRadius: "50%",
+										background: "var(--color-accent)",
+									}}
+								/>
+							)}
 							{day.entries.length > 1 && (
 								<span
 									style={{
@@ -135,7 +159,7 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 									<SearchResultThumbnail
 										src={resolveEntryImageSrc(entry)}
 										alt={entry.title}
-										aspectRatio={entry.subtype === "album" || entry.subtype === "song" ? "1 / 1" : "2 / 3"}
+										aspectRatio={aspectRatioFor(entry.subtype)}
 									/>
 									<div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
 										<p className="card-title">{entry.title}</p>

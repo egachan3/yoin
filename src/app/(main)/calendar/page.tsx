@@ -13,10 +13,24 @@ import { CalendarView } from "@/components/CalendarView";
  * (引き継ぎ.md 3.5節)。年月はURLクエリ(?year=&month=)で受け取り、
  * 不正・未指定なら今月にフォールバックする。
  */
+// 手動入力のバックデート記録を考慮して広めに取るが、Date.UTC()がNaNを返す
+// ような極端な値(空文字→Number("")=0、桁溢れする巨大な数値等)は弾く。
+// monthだけ範囲チェックしてyearを素通りさせると、West年やyear=0のような
+// 意味不明な見出しでDBにNaNの範囲クエリが飛んでしまう(レビュー指摘)
+const MIN_YEAR = 2000;
+const MAX_YEAR = 2100;
+
 function parseYearMonth(yearParam: string | undefined, monthParam: string | undefined): { year: number; month: number } {
 	const year = Number(yearParam);
 	const month = Number(monthParam);
-	if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+	if (
+		!Number.isInteger(year) ||
+		year < MIN_YEAR ||
+		year > MAX_YEAR ||
+		!Number.isInteger(month) ||
+		month < 1 ||
+		month > 12
+	) {
 		return todayJstYearMonth();
 	}
 	return { year, month };
@@ -59,6 +73,11 @@ export default async function CalendarPage({
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<h1 style={{ fontSize: 24, marginBottom: "var(--space-4)" }}>カレンダー</h1>
 			<CalendarView
+				// 月が変わるたびに再マウントさせ、選択中の日付(クライアント側の
+				// state)を確実にリセットする。dateKeyの形式上、月が変われば
+				// 選択状態は自然にnullへ落ちるが、それに暗黙で頼らずkeyで
+				// 明示的に断ち切る(レビュー指摘)
+				key={`${year}-${month}`}
 				month={calendarMonth}
 				prevHref={monthHref(prev.getUTCFullYear(), prev.getUTCMonth() + 1)}
 				nextHref={monthHref(next.getUTCFullYear(), next.getUTCMonth() + 1)}

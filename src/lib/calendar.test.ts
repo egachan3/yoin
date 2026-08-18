@@ -29,10 +29,16 @@ describe("buildCalendarMonth", () => {
     expect(buildCalendarMonth(2028, 2, []).days).toHaveLength(29);
   });
 
-  it("月初の曜日(leadingBlanks)を正しく求める(2026-08-01は土曜)", () => {
-    // Date.UTC(2026,7,1).getUTCDay()を検算: 実際に土曜であることが前提
-    const month = buildCalendarMonth(2026, 8, []);
-    expect(new Date(Date.UTC(2026, 7, 1)).getUTCDay()).toBe(month.leadingBlanks);
+  it("月初の曜日(leadingBlanks)を正しく求める", () => {
+    // 実装(new Date(Date.UTC(...)).getUTCDay())と同じ式で検算すると、
+    // 実装が仮に間違っていてもテストが同じ間違いを再現して常に通ってしまう
+    // (レビュー指摘)。実カレンダーで裏付けた値を直接ハードコードする。
+    // 2026-08-01は土曜日(date -j -f "%Y-%m-%d" "2026-08-01" "+%A"で確認済み)
+    expect(buildCalendarMonth(2026, 8, []).leadingBlanks).toBe(6); // 日=0…土=6
+    // 2026-02-01は日曜日
+    expect(buildCalendarMonth(2026, 2, []).leadingBlanks).toBe(0);
+    // 2026-01-01は木曜日
+    expect(buildCalendarMonth(2026, 1, []).leadingBlanks).toBe(4);
   });
 
   it("エントリを日本時間の日付ごとに正しく振り分ける", () => {

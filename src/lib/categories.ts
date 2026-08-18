@@ -66,7 +66,7 @@ export const SUBTYPE_SEARCH_PATH: Record<Subtype, string> = {
 };
 
 /** アルバムと曲だけ正方形(ジャケットの通例)、他は2:3(書影・ポスターの通例) */
-export function aspectRatioFor(subtype: Subtype): string {
+export function aspectRatioFor(subtype: Subtype): "1 / 1" | "2 / 3" {
   return subtype === "album" || subtype === "song" ? "1 / 1" : "2 / 3";
 }
 
