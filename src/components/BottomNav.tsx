@@ -5,9 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CategorySheet } from "./CategorySheet";
 
+// バー自体の高さ(px)。layout.tsx側の本文paddingBottomと同じ値を
+// 参照させることで、どちらか一方だけ変更してズレる事故を防ぐ
+export const BOTTOM_NAV_HEIGHT = 64;
+
 const TABS = [
 	{
 		href: "/",
+		// "/"だけでなく"/shelf/xxx"(カテゴリ詳細)も棚の一部として扱う。
+		// 単純なstartsWith("/")は全パスに一致してしまうため、"棚"用の判定だけ
+		// 個別に持つ(下のactive判定を参照)
+		matchesPath: (pathname: string) => pathname === "/" || pathname.startsWith("/shelf/"),
 		label: "棚",
 		icon: (
 			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -20,6 +28,7 @@ const TABS = [
 	},
 	{
 		href: "/calendar",
+		matchesPath: (pathname: string) => pathname.startsWith("/calendar"),
 		label: "カレンダー",
 		icon: (
 			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -31,6 +40,7 @@ const TABS = [
 	},
 	{
 		href: "/profile",
+		matchesPath: (pathname: string) => pathname.startsWith("/profile"),
 		label: "プロフィール",
 		icon: (
 			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -61,17 +71,19 @@ export function BottomNav() {
 					right: 0,
 					bottom: 0,
 					zIndex: 30,
+					height: BOTTOM_NAV_HEIGHT,
+					boxSizing: "border-box",
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "space-around",
-					padding: "var(--space-2) var(--space-4)",
-					paddingBottom: "calc(var(--space-2) + env(safe-area-inset-bottom))",
+					padding: "0 var(--space-4)",
+					paddingBottom: "env(safe-area-inset-bottom)",
 					background: "var(--color-bg)",
 					borderTop: "1px solid var(--color-divider)",
 				}}
 			>
 				{TABS.map((tab) => {
-					const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href);
+					const active = tab.matchesPath(pathname);
 					return (
 						<Link
 							key={tab.href}

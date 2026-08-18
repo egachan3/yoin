@@ -22,12 +22,16 @@ const SHELF_ENTRY_SELECT = [
 ] as const;
 
 /**
- * ジャンルを問わず本人の棚エントリを一覧取得する。
- * 棚トップのカテゴリ別集計(summarizeByCategory)も、この結果をJS側で
- * subtypeごとに束ねるだけで作る。SQL側でウィンドウ関数を書くより、
- * 「1回全部取ってJSで分類する」ほうが単純でバグが入りにくいと判断した。
- * 100件のLIMITを超えるユーザーでは古いエントリが集計から漏れるが、
- * 現状のスケールでは許容する(将来カテゴリ別に直接クエリする形へ変える余地あり)。
+ * ジャンルを問わず本人の棚エントリを一覧取得する(直近100件、画像表示用)。
+ * 棚トップのカテゴリ別集計(summarizeByCategory)は、この結果をJS側で
+ * subtypeごとに束ねて「直近の画像」を作るのに使う。SQL側でウィンドウ関数を
+ * 書くより、「1回全部取ってJSで分類する」ほうが単純でバグが入りにくいと判断した。
+ *
+ * 【重要】このLIMIT 100は「カテゴリの件数・存在」の判定には使わない。
+ * 1カテゴリに大量登録すると他カテゴリの全エントリがLIMITの外に押し出され、
+ * そのカテゴリカード自体が棚トップから消えてしまう(⊕シートの遷移先は
+ * 追加画面のみで、カード以外に閲覧画面への導線がないため)。
+ * 正確な件数・カテゴリの存在確認はlistCategoryCounts(LIMIT無し)を使う。
  */
 export type ShelfEntryRow = Awaited<ReturnType<typeof listShelfEntries>>[number];
 
@@ -39,6 +43,24 @@ export async function listShelfEntries(db: Kysely<Database>, userId: string) {
     .where("shelf_entries.user_id", "=", userId)
     .orderBy("shelf_entries.added_at", "desc")
     .limit(100)
+    .execute();
+}
+
+/**
+ * カテゴリ(subtype)ごとの正確な件数。LIMIT無しでGROUP BYするため、
+ * どれだけ記録が多いカテゴリがあっても他カテゴリの件数が欠けることがない。
+ * 棚トップのカード表示に「そのカテゴリが存在するか」の判定として使う
+ * (画像はlistShelfEntriesの直近100件から拾えるだけ拾う、summarizeByCategory参照)。
+ */
+export type CategoryCountRow = Awaited<ReturnType<typeof listCategoryCounts>>[number];
+
+export async function listCategoryCounts(db: Kysely<Database>, userId: string) {
+  return db
+    .selectFrom("shelf_entries")
+    .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
+    .select(["catalog_entities.subtype", (eb) => eb.fn.countAll().as("count")])
+    .where("shelf_entries.user_id", "=", userId)
+    .groupBy("catalog_entities.subtype")
     .execute();
 }
 

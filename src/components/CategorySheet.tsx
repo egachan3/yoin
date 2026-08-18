@@ -90,7 +90,11 @@ export function CategorySheet({ onClose }: { onClose: () => void }) {
 								{/* eslint-disable-next-line @next/next/no-img-element -- 静的アセットのため次のimage最適化は不要 */}
 								<img src={SUBTYPE_ICON[subtype]} alt="" style={{ width: 28, height: 28 }} />
 							</span>
-							<span style={{ fontSize: 12, color: "var(--color-text)" }}>{SUBTYPE_LABELS[subtype]}</span>
+							{/* 本⇄マンガ、ドラマ⇄アニメは同じアイコン画像を共有しているため、
+							    ラベルを太字にして誤タップを減らす(レビュー指摘) */}
+							<span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text)" }}>
+								{SUBTYPE_LABELS[subtype]}
+							</span>
 						</button>
 					))}
 				</div>

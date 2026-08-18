@@ -4,7 +4,7 @@
 // 参照: 引き継ぎ.md 3.5節「UI全面刷新の仕様」
 
 import type { Genre, Subtype } from "@/db/schema";
-import type { ShelfEntryRow } from "@/db/shelf";
+import type { ShelfEntryRow, CategoryCountRow } from "@/db/shelf";
 
 export const SUBTYPE_LABELS: Record<Subtype, string> = {
   book: "本",
@@ -103,29 +103,46 @@ export interface CategorySummary {
 const RECENT_ENTRIES_PER_CATEGORY = 3;
 
 /**
- * 全ジャンル横断のエントリ一覧(listShelfEntries、added_at降順)を、
- * subtypeごとに束ねて棚トップのカード用データを作る。
- * 登録が1件もないカテゴリは結果に含めない(棚は「登録があるカテゴリだけ
- * 表示する」方針のため、引き継ぎ.md 3.5節)。
+ * 棚トップのカード用データを作る。
+ *
+ * 【件数と画像で情報源を分けている理由】
+ * countsはlistCategoryCounts(LIMIT無し・GROUP BY)の結果で、これを
+ * 「そのカテゴリが存在するか」「件数は何件か」の正とする。もし
+ * listShelfEntries(直近100件)だけを情報源にすると、1カテゴリに大量登録した
+ * ユーザーでは他カテゴリの全エントリがLIMITの外に押し出され、そのカテゴリの
+ * カード自体が棚トップから消えてしまう(⊕シートの遷移先は追加画面のみで、
+ * カード以外にカテゴリの閲覧画面への導線がないため、実質そのカテゴリに
+ * 二度とアクセスできなくなる)。
+ *
+ * recentEntriesはlistShelfEntries(直近100件、added_at降順)から拾えるだけ
+ * 拾う。LIMITの外に出たカテゴリは画像が空になり、カードはプレースホルダー
+ * 表示になるが、カード自体は消えない(件数はcountsから正しく出る)。
  */
-export function summarizeByCategory(entries: readonly ShelfEntryRow[]): CategorySummary[] {
-  const bySubtype = new Map<Subtype, ShelfEntryRow[]>();
-  for (const entry of entries) {
-    const list = bySubtype.get(entry.subtype);
+export function summarizeByCategory(
+  recentEntries: readonly ShelfEntryRow[],
+  counts: readonly CategoryCountRow[],
+): CategorySummary[] {
+  const recentBySubtype = new Map<Subtype, ShelfEntryRow[]>();
+  for (const entry of recentEntries) {
+    const list = recentBySubtype.get(entry.subtype);
     if (list) {
       list.push(entry);
     } else {
-      bySubtype.set(entry.subtype, [entry]);
+      recentBySubtype.set(entry.subtype, [entry]);
     }
   }
 
-  return SUBTYPE_ORDER.filter((subtype) => bySubtype.has(subtype)).map((subtype) => {
-    const list = bySubtype.get(subtype) as ShelfEntryRow[];
-    return {
-      subtype,
-      count: list.length,
-      // entriesは呼び出し元でadded_at降順ソート済みの前提(listShelfEntries参照)
-      recentEntries: list.slice(0, RECENT_ENTRIES_PER_CATEGORY),
-    };
-  });
+  const countBySubtype = new Map<Subtype, number>();
+  for (const row of counts) {
+    // D1/SQLiteのCOUNT()はドライバによってstring/bigintで返ることがあるため、
+    // 表示用にnumberへ正規化する
+    countBySubtype.set(row.subtype, Number(row.count));
+  }
+
+  return SUBTYPE_ORDER.filter((subtype) => countBySubtype.has(subtype)).map((subtype) => ({
+    subtype,
+    count: countBySubtype.get(subtype) as number,
+    // entriesは呼び出し元でadded_at降順ソート済みの前提(listShelfEntries参照)
+    recentEntries: (recentBySubtype.get(subtype) ?? []).slice(0, RECENT_ENTRIES_PER_CATEGORY),
+  }));
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
-import { listShelfEntries } from "@/db/shelf";
+import { listCategoryCounts, listShelfEntries } from "@/db/shelf";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { SUBTYPE_LABELS, aspectRatioFor, summarizeByCategory, type CategorySummary } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
@@ -22,8 +22,13 @@ export default async function Home() {
 	}
 
 	const db = createDb(env.DB);
-	const entries = await listShelfEntries(db, session.user.id);
-	const categories = summarizeByCategory(entries);
+	// entriesは直近100件(画像用)、countsはLIMIT無し(カテゴリの存在・件数の正)。
+	// 分ける理由はsummarizeByCategoryのコメント参照
+	const [entries, counts] = await Promise.all([
+		listShelfEntries(db, session.user.id),
+		listCategoryCounts(db, session.user.id),
+	]);
+	const categories = summarizeByCategory(entries, counts);
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
