@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
-import { countShelfEntries, listCategoryCounts } from "@/db/shelf";
+import { listCategoryCounts } from "@/db/shelf";
 import { SUBTYPE_LABELS, SUBTYPE_ORDER } from "@/lib/categories";
 import Link from "next/link";
 
@@ -26,11 +26,12 @@ export default async function ProfilePage() {
 	}
 
 	const db = createDb(env.DB);
-	const [total, categoryCounts] = await Promise.all([
-		countShelfEntries(db, session.user.id),
-		listCategoryCounts(db, session.user.id),
-	]);
+	// 全体件数はカテゴリ別件数の合計で求める(同じJOIN条件のcountShelfEntriesを
+	// 別途呼ぶとD1へのクエリが1本増えるだけの冗長な呼び出しになるため、
+	// listCategoryCountsの結果から導出する形にした。レビュー指摘)
+	const categoryCounts = await listCategoryCounts(db, session.user.id);
 	const countBySubtype = new Map(categoryCounts.map((row) => [row.subtype, Number(row.count)]));
+	const total = categoryCounts.reduce((sum, row) => sum + Number(row.count), 0);
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>

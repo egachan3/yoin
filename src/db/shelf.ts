@@ -65,21 +65,6 @@ export async function listCategoryCounts(db: Kysely<Database>, userId: string) {
 }
 
 /**
- * プロフィールの「記録したもの」合計。カテゴリ別の件数と同じ条件で数えるので、
- * アーカイブ等の表示条件が将来追加されたときも集計の入口を揃えられる。
- */
-export async function countShelfEntries(db: Kysely<Database>, userId: string) {
-  const row = await db
-    .selectFrom("shelf_entries")
-    .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
-    .select((eb) => eb.fn.countAll<number>().as("count"))
-    .where("user_id", "=", userId)
-    .executeTakeFirstOrThrow();
-
-  return Number(row.count);
-}
-
-/**
  * 特定カテゴリ(subtype)に絞った棚エントリ一覧(カテゴリ詳細画面用)。
  * こちらはカテゴリを跨がないので、DB側でsubtypeを絞り込む専用クエリにする
  * (1カテゴリに100件を超える記録がある場合でも取りこぼさないため)。
