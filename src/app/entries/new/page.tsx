@@ -115,7 +115,7 @@ function ManualEntryForm() {
 				{SUBTYPE_LABELS[subtype]}を手動で追加
 			</h1>
 			<p className="text-muted" style={{ fontSize: 13, marginBottom: "var(--space-6)" }}>
-				検索でヒットしなかった作品を記録します。画像は任意で追加でき、この記録はあなた以外には表示されません。
+				検索でヒットしなかった作品を記録します。画像は任意で追加できます。棚を公開している場合、この記録と画像は公開棚の閲覧者にも表示されます。
 			</p>
 
 			<form onSubmit={handleSubmit} style={{ display: "grid", gap: "var(--space-4)" }}>
