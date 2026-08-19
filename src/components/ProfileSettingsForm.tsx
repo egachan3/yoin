@@ -4,12 +4,40 @@ import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
-export function ProfileSettingsForm({ handle }: { handle: string }) {
+export function ProfileSettingsForm({ handle, isPublic: initialIsPublic }: { handle: string; isPublic: boolean }) {
 	const router = useRouter();
 	const [value, setValue] = useState(handle);
 	const [status, setStatus] = useState<"idle" | "saving" | "error" | "saved">("idle");
 	const [message, setMessage] = useState("");
 	const errorId = useId();
+
+	const [isPublic, setIsPublic] = useState(initialIsPublic);
+	const [visibilityStatus, setVisibilityStatus] = useState<"idle" | "saving" | "error">("idle");
+	const [visibilityMessage, setVisibilityMessage] = useState("");
+
+	async function toggleVisibility() {
+		const next = !isPublic;
+		setVisibilityStatus("saving");
+		setVisibilityMessage("");
+		try {
+			const res = await fetch("/api/profile/visibility", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ isPublic: next }),
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { message?: string } | null;
+				setVisibilityStatus("error");
+				setVisibilityMessage(body?.message ?? "変更に失敗しました。もう一度お試しください。");
+				return;
+			}
+			setIsPublic(next);
+			setVisibilityStatus("idle");
+		} catch {
+			setVisibilityStatus("error");
+			setVisibilityMessage("通信に失敗しました。接続を確認してもう一度お試しください。");
+		}
+	}
 
 	async function refreshSessionAndReturnToProfile() {
 		// 直接UPDATE後の古いcookie cacheを残すと、画面遷移先に以前のハンドルが
@@ -103,6 +131,34 @@ export function ProfileSettingsForm({ handle }: { handle: string }) {
 					</div>
 				)}
 			</form>
+
+			<section className="card" style={{ gap: "var(--space-3)" }} aria-labelledby="visibility-heading">
+				<div>
+					<h2 id="visibility-heading" style={{ fontSize: 20, marginBottom: 3 }}>公開設定</h2>
+					<p className="text-muted" style={{ fontSize: 13, margin: 0 }}>
+						{isPublic ? (
+							<>
+								コレクションは誰でも閲覧できます。公開URL: <strong>@{value}</strong>
+							</>
+						) : (
+							"コレクションは非公開です。自分以外は閲覧できません。"
+						)}
+					</p>
+				</div>
+				<button
+					type="button"
+					className={isPublic ? "btn btn-secondary" : "btn btn-primary"}
+					onClick={() => void toggleVisibility()}
+					disabled={visibilityStatus === "saving"}
+				>
+					{visibilityStatus === "saving" ? "変更中…" : isPublic ? "非公開にする" : "コレクションを公開する"}
+				</button>
+				{visibilityStatus === "error" && (
+					<p role="alert" style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>
+						{visibilityMessage}
+					</p>
+				)}
+			</section>
 
 			<section className="card" style={{ gap: "var(--space-3)" }} aria-labelledby="logout-heading">
 				<div>

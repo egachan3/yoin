@@ -1,50 +1,55 @@
 import { headers } from "next/headers";
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { listShelfEntriesBySubtype } from "@/db/shelf";
+import { normalizeHandle } from "@/lib/handle";
+import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { SUBTYPE_LABELS, isSubtype } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 /**
- * カテゴリ1つ分の一覧画面。棚トップのカードをタップした先。
- * ★評価とコメントは、ステータス表示の廃止と合わせて棚トップから
- * ここに移した(引き継ぎ.md 3.5節)。
+ * 公開棚のカテゴリ1つ分の一覧。/u/[handle]のカードをタップした先。
+ * 通報ボタンはここに追加する予定(別タスク)。
  */
-export default async function CategoryDetailPage({ params }: { params: Promise<{ subtype: string }> }) {
-	const { subtype: subtypeParam } = await params;
-	if (!isSubtype(subtypeParam)) {
-		notFound();
-	}
+export default async function PublicCategoryDetailPage({
+	params,
+}: {
+	params: Promise<{ handle: string; subtype: string }>;
+}) {
+	const { handle: handleParam, subtype: subtypeParam } = await params;
+	if (!isSubtype(subtypeParam)) notFound();
 
 	const { env } = await getCloudflareContext({ async: true });
+	const db = createDb(env.DB);
+
 	const auth = createAuth(env);
 	const session = await auth.api.getSession({ headers: await headers() });
 
-	if (!session) {
-		redirect("/login");
-	}
-	if (!session.user.handle_normalized) {
-		redirect("/onboarding");
+	const access = await resolvePublicShelfAccess(db, normalizeHandle(handleParam), session?.user.id ?? null);
+	if (!access) notFound();
+	if (!access.allowed) {
+		return (
+			<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
+				<p className="text-muted">このコレクションは非公開です。</p>
+			</main>
+		);
 	}
 
-	const db = createDb(env.DB);
-	const entries = await listShelfEntriesBySubtype(db, session.user.id, subtypeParam);
+	const entries = await listShelfEntriesBySubtype(db, access.ownerId, subtypeParam);
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<h1 style={{ fontSize: 24, marginBottom: "var(--space-1)" }}>{SUBTYPE_LABELS[subtypeParam]}</h1>
-			{/* 統計はShelfの再生回数・視聴時間のような集計は持たないため件数のみ表示する
-			    (Yoinは連携機能がなく再生実績を持たないため、実データから出せる指標が件数しかない) */}
 			<p className="text-muted" style={{ marginBottom: "var(--space-6)" }}>
-				{entries.length}件
+				@{access.ownerHandle} ・ {entries.length}件
 			</p>
 
 			{entries.length === 0 ? (
-				<p className="text-muted">まだ何も追加されていません。</p>
+				<p className="text-muted">まだ何も記録がありません。</p>
 			) : (
 				<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
 					{entries.map((entry) => (
@@ -69,9 +74,7 @@ export default async function CategoryDetailPage({ params }: { params: Promise<{
 				</div>
 			)}
 
-			{/* TMDBの利用規約上、映画/ドラマの画面には帰属表示が必須。
-			    棚トップ(main)/page.tsxにはあったが、このカテゴリ詳細画面には
-			    元々なかった(既存の抜け、公開棚PRのレビューで発見) */}
+			{/* TMDBの利用規約上、映画/ドラマの画面には帰属表示が必須(レビュー指摘) */}
 			{(subtypeParam === "movie" || subtypeParam === "tv") && <TmdbAttribution />}
 		</main>
 	);
