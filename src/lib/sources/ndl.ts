@@ -205,9 +205,16 @@ export async function searchBooks(
 
 /**
  * ISBN完全一致検索。Amazon URLからのTier2解決やGoogle Books連携で使う。
+ *
+ * isbnはクライアント由来の値が渡されることがある(/api/search/books/cover等)
+ * ため、searchBooksのtitle/creatorクエリと同様にCQL上意味を持つダブルクォートを
+ * エスケープする。ここを素通しにすると、この関数の結果に依存する呼び出し元の
+ * 検証ロジック(verifyBookCandidate等)自体を細工したisbnで迂回されかねない
+ * (reviewer指摘)
  */
 export async function findBookByIsbn(isbn: string): Promise<NdlBookCandidate | null> {
-  const { candidates } = await sruSearch(`isbn="${isbn}"`, 1, 1);
+  const escaped = isbn.replace(/"/g, '\\"');
+  const { candidates } = await sruSearch(`isbn="${escaped}"`, 1, 1);
   return candidates[0] ?? null;
 }
 
