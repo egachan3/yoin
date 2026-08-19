@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReportTargetType, ReportStatus } from "@/db/schema";
+import { REPORT_REASONS } from "@/lib/report-reasons";
 
 export interface AdminReportRow {
 	id: string;
@@ -20,6 +21,14 @@ const TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
 };
 
 const SLA_HOURS = 24;
+
+// reports.reasonにはreport-reasons.tsのvalue(識別子)が保存されている
+// (/api/reports参照)。管理者が読む画面なので日本語ラベルに変換して表示する
+const REASON_LABELS: Record<string, string> = Object.fromEntries(REPORT_REASONS.map((r) => [r.value, r.label]));
+
+function reasonLabel(reason: string): string {
+	return REASON_LABELS[reason] ?? reason;
+}
 
 function formatDateTime(unixSeconds: number): string {
 	return new Date(unixSeconds * 1000).toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "short" });
@@ -64,7 +73,12 @@ export function AdminReportsList({ initialReports }: { initialReports: AdminRepo
 	}
 
 	const pending = reports.filter((r) => r.status === "pending");
-	const resolved = reports.filter((r) => r.status === "resolved");
+	// resolvedはstateの元の並び(status asc, reported_at desc)のままだと、
+	// その場で対応済みにした直近の通報が一番上に来るとは限らない
+	// (reviewer指摘)。resolved_atの降順に並べ直す
+	const resolved = reports
+		.filter((r) => r.status === "resolved")
+		.sort((a, b) => (b.resolvedAt ?? 0) - (a.resolvedAt ?? 0));
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
@@ -110,7 +124,7 @@ export function AdminReportsList({ initialReports }: { initialReports: AdminRepo
 											</span>
 										)}
 									</div>
-									<p style={{ margin: 0, fontSize: 13 }}>理由: {report.reason}</p>
+									<p style={{ margin: 0, fontSize: 13 }}>理由: {reasonLabel(report.reason)}</p>
 									<p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
 										通報者: {report.reporterHandle ? `@${report.reporterHandle}` : "(不明)"} ・ {formatDateTime(report.reportedAt)}
 									</p>
@@ -146,7 +160,7 @@ export function AdminReportsList({ initialReports }: { initialReports: AdminRepo
 									{TARGET_TYPE_LABELS[report.targetType]}への通報
 								</p>
 								<p style={{ margin: 0 }}>{report.targetLabel}</p>
-								<p style={{ margin: 0, fontSize: 13 }}>理由: {report.reason}</p>
+								<p style={{ margin: 0, fontSize: 13 }}>理由: {reasonLabel(report.reason)}</p>
 								<p className="text-muted" style={{ margin: 0, fontSize: 12 }}>
 									通報者: {report.reporterHandle ? `@${report.reporterHandle}` : "(不明)"} ・ 通報{formatDateTime(report.reportedAt)}
 									{report.resolvedAt ? ` ・ 対応${formatDateTime(report.resolvedAt)}` : ""}
