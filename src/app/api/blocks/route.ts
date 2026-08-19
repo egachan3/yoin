@@ -4,12 +4,13 @@ import { createDb } from "@/db/client";
 import { createBlock, deleteBlock } from "@/db/blocks";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-type BlockApiErrorCode = "unauthorized" | "invalid_body" | "self_block" | "rate_limited";
+type BlockApiErrorCode = "unauthorized" | "invalid_body" | "self_block" | "target_not_found" | "rate_limited";
 
 const ERROR_MESSAGES: Record<BlockApiErrorCode, string> = {
 	unauthorized: "ログインが必要です。",
 	invalid_body: "入力内容が不正です。",
 	self_block: "自分自身はブロックできません。",
+	target_not_found: "対象のユーザーが見つかりません。",
 	rate_limited: "試行回数が多すぎます。しばらくしてからお試しください。",
 };
 
@@ -39,7 +40,17 @@ export async function POST(request: Request) {
 	if (!targetUserId) return errorResponse("invalid_body", 422);
 	if (targetUserId === session.user.id) return errorResponse("self_block", 422);
 
-	await createBlock(createDb(env.DB), session.user.id, targetUserId);
+	// targetUserIdは通常UIから正規の値(access.ownerId等)しか渡らないが、
+	// APIを直接叩かれた場合に備え、存在しないユーザーIDによるFOREIGN KEY
+	// 制約違反を汎用500ではなく422で返す(レビュー指摘)
+	try {
+		await createBlock(createDb(env.DB), session.user.id, targetUserId);
+	} catch (err) {
+		if (err instanceof Error && /FOREIGN KEY constraint failed/i.test(err.message)) {
+			return errorResponse("target_not_found", 422);
+		}
+		throw err;
+	}
 	return Response.json({ ok: true });
 }
 

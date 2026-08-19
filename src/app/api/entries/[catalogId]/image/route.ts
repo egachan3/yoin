@@ -55,8 +55,11 @@ export async function GET(request: Request, context: { params: Promise<{ catalog
       "Content-Type": object.httpMetadata?.contentType ?? "image/jpeg",
       // 公開/非公開・ブロック関係はいつでも変わりうるため、共有(CDN)キャッシュ
       // は使わない(R2プロキシのbuildCacheControlのような長期publicキャッシュは
-      // 不可。非公開に切り替えた直後も古いpublicキャッシュ経由で画像が漏れる)
-      "Cache-Control": "private, max-age=3600",
+      // 不可。非公開に切り替えた直後も古いpublicキャッシュ経由で画像が漏れる)。
+      // 本人閲覧は自分の端末内キャッシュなので長めに許容するが、閲覧者(本人以外)
+      // への配信は非公開化・ブロックが即座に反映されるべきため短く抑える
+      // (レビュー指摘: max-age=3600のままだと閲覧者のブラウザに最大1時間残る)
+      "Cache-Control": isOwner ? "private, max-age=3600" : "private, max-age=60, must-revalidate",
       "X-Content-Type-Options": "nosniff",
     },
   });

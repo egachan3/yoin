@@ -2,7 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { createReport } from "@/db/reports";
-import { isReportReasonValue, REPORT_REASONS } from "@/lib/report-reasons";
+import { isReportReasonValue } from "@/lib/report-reasons";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { ReportTargetType } from "@/db/schema";
 
@@ -53,11 +53,13 @@ export async function POST(request: Request) {
 		return errorResponse("invalid_body", 422);
 	}
 
+	// reasonは表示用ラベルではなくvalue(識別子)をそのまま保存する
+	// (report-reasons.tsのコメント参照。運用側が機械的にフィルタ・集計しやすくするため)
 	await createReport(createDb(env.DB), {
 		reporterId: session.user.id,
 		targetType: targetType as ReportTargetType,
 		targetId,
-		reason: REPORT_REASONS.find((r) => r.value === reason)!.label,
+		reason,
 	});
 
 	return Response.json({ ok: true });
