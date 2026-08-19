@@ -120,13 +120,16 @@ export default function BookSearchPage() {
 		await runSearch(1, false, query);
 	}
 
-	async function handleAdd(candidate: BookCandidate) {
+	async function handleAdd(candidate: BookCandidateWithCover) {
 		setAddingId(candidate.ndlBibId);
 		setAddError(null);
+		// coverEligibleはこの画面だけで使うクライアント側の状態なので、
+		// サーバーへ送るボディには含めない
+		const { coverEligible: _coverEligible, ...requestBody } = candidate;
 		const res = await fetch("/api/shelf/books", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(candidate),
+			body: JSON.stringify(requestBody),
 		});
 		setAddingId(null);
 		if (res.ok) {
