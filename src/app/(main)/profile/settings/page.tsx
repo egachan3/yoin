@@ -18,7 +18,7 @@ export default async function ProfileSettingsPage() {
 				<Link href="/profile" className="btn btn-secondary btn-icon" aria-label="プロフィールに戻る">‹</Link>
 				<h1 style={{ fontSize: 24, margin: 0 }}>設定</h1>
 			</header>
-			<ProfileSettingsForm handle={session.user.handle} />
+			<ProfileSettingsForm handle={session.user.handle} isPublic={session.user.is_public ?? false} />
 		</main>
 	);
 }
