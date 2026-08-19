@@ -10,10 +10,10 @@ import { SUBTYPE_LABELS, isSubtype } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
+import { ReportButton } from "@/components/ReportButton";
 
 /**
  * 公開棚のカテゴリ1つ分の一覧。/u/[handle]のカードをタップした先。
- * 通報ボタンはここに追加する予定(別タスク)。
  */
 export default async function PublicCategoryDetailPage({
 	params,
@@ -68,6 +68,9 @@ export default async function PublicCategoryDetailPage({
 									</p>
 								)}
 								{entry.comment && <p style={{ fontSize: 13, margin: 0 }}>{entry.comment}</p>}
+								{session?.user.id !== access.ownerId && (
+									<ReportButton targetType="entry" targetId={entry.id} isLoggedIn={session != null} />
+								)}
 							</div>
 						</div>
 					))}
