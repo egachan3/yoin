@@ -33,3 +33,6 @@ MAL_CLIENT_ID=
 # 必須。未設定だとゲームの検索/追加は502を返す
 IGDB_CLIENT_ID=
 IGDB_CLIENT_SECRET=
+
+# 管理画面(/admin)へのアクセスを許可するメールアドレス(カンマ区切り、複数可)
+ADMIN_EMAILS=
