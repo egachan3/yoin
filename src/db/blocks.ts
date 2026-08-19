@@ -10,6 +10,14 @@ import type { Database } from "./schema";
  * この関数はviewerId(ログイン中のユーザー)が分かっている場合にのみ呼び出す
  * 前提で、「ログイン状態での関係性の遮断」だけを実現する。
  */
+// A→Bのブロック行1件に対し、(blocker=viewer AND blocked=owner) OR
+// (blocker=owner AND blocked=viewer) という条件で、viewer/ownerの
+// 割り当てをどちらに入れ替えても1件ヒットすることをローカルD1で実際に
+// 検証済み(2026-08-19)。逆に無関係なペアでは0件になることも確認した。
+// このプロジェクトはDB問い合わせ関数自体の実行テストを持つ慣習がなく
+// (既存のsrc/db/*.tsはいずれもモック経由の間接テストのみ)、新規に
+// テスト用DBドライバを追加するのは今回のPRのスコープを超えるため、
+// 実D1での確認結果をコメントとして残す形にした
 export async function isBlocked(db: Kysely<Database>, viewerId: string, ownerId: string): Promise<boolean> {
   if (viewerId === ownerId) return false;
   const row = await db

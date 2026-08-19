@@ -9,6 +9,7 @@ import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { SUBTYPE_LABELS, isSubtype } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 /**
  * 公開棚のカテゴリ1つ分の一覧。/u/[handle]のカードをタップした先。
@@ -72,6 +73,9 @@ export default async function PublicCategoryDetailPage({
 					))}
 				</div>
 			)}
+
+			{/* TMDBの利用規約上、映画/ドラマの画面には帰属表示が必須(レビュー指摘) */}
+			{(subtypeParam === "movie" || subtypeParam === "tv") && <TmdbAttribution />}
 		</main>
 	);
 }
