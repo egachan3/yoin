@@ -32,3 +32,51 @@ export async function isBlocked(db: Kysely<Database>, viewerId: string, ownerId:
     .executeTakeFirst();
   return row !== undefined;
 }
+
+/**
+ * blockerIdがblockedIdを実際にブロックしているか(片方向)。
+ * isBlocked()と違い、プロフィール画面のブロックボタンの表示状態
+ * (「ブロックする」/「ブロック中」)を決めるためのもの。
+ */
+export async function hasBlocked(db: Kysely<Database>, blockerId: string, blockedId: string): Promise<boolean> {
+  if (blockerId === blockedId) return false;
+  const row = await db
+    .selectFrom("blocks")
+    .select("blocker_id")
+    .where("blocker_id", "=", blockerId)
+    .where("blocked_id", "=", blockedId)
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+export async function createBlock(db: Kysely<Database>, blockerId: string, blockedId: string): Promise<void> {
+  await db
+    .insertInto("blocks")
+    .values({ blocker_id: blockerId, blocked_id: blockedId, created_at: Math.floor(Date.now() / 1000) })
+    .onConflict((oc) => oc.columns(["blocker_id", "blocked_id"]).doNothing())
+    .execute();
+}
+
+export async function deleteBlock(db: Kysely<Database>, blockerId: string, blockedId: string): Promise<void> {
+  await db
+    .deleteFrom("blocks")
+    .where("blocker_id", "=", blockerId)
+    .where("blocked_id", "=", blockedId)
+    .execute();
+}
+
+/**
+ * ブロック管理画面(設定)用。ブロック中のユーザー一覧をhandle付きで返す。
+ */
+export async function listBlockedUsers(
+  db: Kysely<Database>,
+  blockerId: string,
+): Promise<{ id: string; handle: string | null }[]> {
+  return db
+    .selectFrom("blocks")
+    .innerJoin("user", "user.id", "blocks.blocked_id")
+    .select(["user.id", "user.handle"])
+    .where("blocks.blocker_id", "=", blockerId)
+    .orderBy("blocks.created_at", "desc")
+    .execute();
+}

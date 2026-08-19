@@ -9,6 +9,8 @@ import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { summarizeByCategory } from "@/lib/categories";
 import { CategoryCard } from "@/components/CategoryCard";
 import { TmdbAttribution } from "@/components/TmdbAttribution";
+import { ReportButton } from "@/components/ReportButton";
+import { BlockButton } from "@/components/BlockButton";
 
 /**
  * 公開棚トップ。/@{handle}へのアクセスがmiddleware.tsで/u/{handle}に
@@ -45,9 +47,24 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-2)" }}>
-			<h1 style={{ fontSize: 24, marginBottom: "var(--space-6)", paddingInline: "var(--space-2)" }}>
-				@{access.ownerHandle}のコレクション
-			</h1>
+			<div
+				style={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "flex-start",
+					gap: "var(--space-2)",
+					paddingInline: "var(--space-2)",
+					marginBottom: "var(--space-6)",
+				}}
+			>
+				<h1 style={{ fontSize: 24, margin: 0 }}>@{access.ownerHandle}のコレクション</h1>
+				{session?.user.id !== access.ownerId && (
+					<div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+						<ReportButton targetType="profile" targetId={access.ownerId} isLoggedIn={session != null} />
+						<BlockButton targetUserId={access.ownerId} isLoggedIn={session != null} />
+					</div>
+				)}
+			</div>
 
 			{categories.length === 0 ? (
 				<p className="text-muted" style={{ paddingInline: "var(--space-2)" }}>
