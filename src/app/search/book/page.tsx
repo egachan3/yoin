@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
@@ -12,15 +12,55 @@ interface BookCandidate {
 	publisher: string | null;
 	isbn: string | null;
 	extentRaw: string | null;
-	// サーバー側で上位5件のみ取得する(Google Books APIの無料枠が1日1,000件と
-	// 少ないため)。6件目以降は常にnull
-	imageUrl: string | null;
+}
+
+interface BookCandidateWithCover extends BookCandidate {
+	// この検索バッチ(最大10件)内での上位5件だけtrue。Google Books APIの
+	// 無料枠が1日1,000件と少ないため、書影取得はここでも上位のみに絞る
+	// (/api/search/books/cover側の意図はコード内コメント参照)
+	coverEligible: boolean;
 }
 
 interface SearchResponse {
 	candidates: BookCandidate[];
 	nextStartRecord: number | null;
 	field: "title" | "creator";
+}
+
+const IMAGE_LOOKUP_LIMIT = 5;
+
+/**
+ * 書影を後から個別取得して差し込むサムネイル。検索結果一覧自体は
+ * Google Booksの応答を待たずに表示され、マウント後にこのコンポーネントが
+ * それぞれ非同期で画像を取りに行く(体感速度改善、ユーザー指摘への対応)。
+ */
+function BookCoverThumbnail({ candidate }: { candidate: BookCandidateWithCover }) {
+	const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (!candidate.coverEligible) return;
+		let cancelled = false;
+		const url = new URL("/api/search/books/cover", window.location.origin);
+		url.searchParams.set("ndlBibId", candidate.ndlBibId);
+		if (candidate.isbn) {
+			url.searchParams.set("isbn", candidate.isbn);
+		}
+		fetch(url.toString())
+			.then((res) => (res.ok ? (res.json() as Promise<{ imageUrl: string | null }>) : null))
+			.then((data) => {
+				if (!cancelled && data) setImageUrl(data.imageUrl);
+			})
+			.catch(() => {
+				// 書影が取れなくてもプレースホルダー表示のままでよい(検索結果自体には影響させない)
+			});
+		return () => {
+			cancelled = true;
+		};
+		// candidate.ndlBibIdが変わらない限り同じ本なので再取得しない
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [candidate.ndlBibId]);
+
+	return <SearchResultThumbnail src={imageUrl} alt={candidate.title} />;
 }
 
 export default function BookSearchPage() {
@@ -30,7 +70,7 @@ export default function BookSearchPage() {
 	// queryをそのまま使うと、検索後に文字を書き換えてから「もっと探す」を押した際、
 	// 新しい文字列を古い検索結果に追記してしまうバグになる)
 	const [searchedQuery, setSearchedQuery] = useState("");
-	const [candidates, setCandidates] = useState<BookCandidate[]>([]);
+	const [candidates, setCandidates] = useState<BookCandidateWithCover[]>([]);
 	const [nextStartRecord, setNextStartRecord] = useState<number | null>(null);
 	// 「もっと探す」でstartRecordを渡し直す際、初回検索で実際に使われた
 	// フィールド(title→creatorへのフォールバックが起きたかどうか)を
@@ -63,7 +103,8 @@ export default function BookSearchPage() {
 			return;
 		}
 		const data = (await res.json()) as SearchResponse;
-		setCandidates((prev) => (append ? [...prev, ...data.candidates] : data.candidates));
+		const withEligibility = data.candidates.map((c, i) => ({ ...c, coverEligible: i < IMAGE_LOOKUP_LIMIT }));
+		setCandidates((prev) => (append ? [...prev, ...withEligibility] : withEligibility));
 		setNextStartRecord(data.nextStartRecord);
 		setSearchField(data.field);
 		setStatus("idle");
@@ -79,13 +120,16 @@ export default function BookSearchPage() {
 		await runSearch(1, false, query);
 	}
 
-	async function handleAdd(candidate: BookCandidate) {
+	async function handleAdd(candidate: BookCandidateWithCover) {
 		setAddingId(candidate.ndlBibId);
 		setAddError(null);
+		// coverEligibleはこの画面だけで使うクライアント側の状態なので、
+		// サーバーへ送るボディには含めない
+		const { coverEligible: _coverEligible, ...requestBody } = candidate;
 		const res = await fetch("/api/shelf/books", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(candidate),
+			body: JSON.stringify(requestBody),
 		});
 		setAddingId(null);
 		if (res.ok) {
@@ -127,7 +171,7 @@ export default function BookSearchPage() {
 			<div style={{ display: "grid", gap: "var(--space-3)" }}>
 				{candidates.map((c) => (
 					<div key={c.ndlBibId} className="card" style={{ flexDirection: "row" }}>
-						<SearchResultThumbnail src={c.imageUrl} alt={c.title} />
+						<BookCoverThumbnail candidate={c} />
 						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
 							<p className="card-title">{c.title}</p>
 							<p className="card-meta">
