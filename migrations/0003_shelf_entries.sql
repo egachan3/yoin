@@ -10,7 +10,7 @@ CREATE TABLE shelf_entries (
   status TEXT NOT NULL DEFAULT 'planned' CHECK (status IN ('planned', 'in_progress', 'completed', 'on_hold', 'dropped')),
   is_revisiting INTEGER NOT NULL DEFAULT 0,
   revisit_count INTEGER NOT NULL DEFAULT 0,
-  -- 30文字以内（文字数制限はアプリ層で検証）、任意入力
+  -- 50文字以内（文字数制限はアプリ層で検証）、任意入力
   comment TEXT,
   -- 5段階（1〜5）、任意入力
   rating INTEGER CHECK (rating BETWEEN 1 AND 5),

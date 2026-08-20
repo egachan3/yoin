@@ -14,13 +14,16 @@ import {
   type MalCandidate,
 } from "@/lib/sources/mal";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { ReviewFieldsSchema, normalizeReviewFields } from "@/lib/review";
 
 // malId/mediaTypeのみを「再照会のヒント」として受け取る。title等はクライアントから
 // 受け取らない(book/music/movieと同じく再照会結果のみを信頼する)
-const AddAnimeMangaSchema = z.object({
-  mediaType: z.enum(["anime", "manga"]),
-  malId: z.number().int().positive(),
-});
+const AddAnimeMangaSchema = z
+  .object({
+    mediaType: z.enum(["anime", "manga"]),
+    malId: z.number().int().positive(),
+  })
+  .extend(ReviewFieldsSchema.shape);
 
 export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -86,6 +89,7 @@ export async function POST(request: Request) {
   const db = createDb(env.DB);
 
   const duration = computeDuration(candidate);
+  const review = normalizeReviewFields(parsed.data);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
@@ -102,8 +106,8 @@ export async function POST(request: Request) {
       status: "completed",
       is_revisiting: 0,
       revisit_count: 0,
-      comment: null,
-      rating: null,
+      comment: review.comment,
+      rating: review.rating,
       estimated_duration_seconds: duration.estimatedSeconds,
       duration_pending: duration.pending,
       raw_duration_value: duration.rawValue,

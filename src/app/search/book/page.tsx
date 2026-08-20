@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { ReviewStep, type ReviewValues } from "@/components/search/ReviewStep";
 
 interface BookCandidate {
 	ndlBibId: string;
@@ -79,6 +80,8 @@ export default function BookSearchPage() {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<string | null>(null);
 	const [addError, setAddError] = useState<{ ndlBibId: string; message: string } | null>(null);
+	// 「コレクションに追加」をタップした候補のndlBibId。他画面のpendingIdと同じ考え方
+	const [pendingId, setPendingId] = useState<string | null>(null);
 
 	async function runSearch(startRecord: number, append: boolean, targetQuery: string, field?: "title" | "creator") {
 		if (!targetQuery.trim()) return;
@@ -120,7 +123,7 @@ export default function BookSearchPage() {
 		await runSearch(1, false, query);
 	}
 
-	async function handleAdd(candidate: BookCandidateWithCover) {
+	async function handleAdd(candidate: BookCandidateWithCover, review: ReviewValues) {
 		setAddingId(candidate.ndlBibId);
 		setAddError(null);
 		// coverEligibleはこの画面だけで使うクライアント側の状態なので、
@@ -129,7 +132,7 @@ export default function BookSearchPage() {
 		const res = await fetch("/api/shelf/books", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(requestBody),
+			body: JSON.stringify({ ...requestBody, rating: review.rating, comment: review.comment }),
 		});
 		setAddingId(null);
 		if (res.ok) {
@@ -177,14 +180,17 @@ export default function BookSearchPage() {
 							<p className="card-meta">
 								{c.creator ?? "著者不明"} {c.publisher ? `／ ${c.publisher}` : ""}
 							</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingId === c.ndlBibId}
-							>
-								{addingId === c.ndlBibId ? "追加中…" : "コレクションに追加"}
-							</button>
+							{pendingId === c.ndlBibId ? (
+								<ReviewStep
+									submitting={addingId === c.ndlBibId}
+									onSubmit={(review) => handleAdd(c, review)}
+									onCancel={() => setPendingId(null)}
+								/>
+							) : (
+								<button type="button" className="btn btn-secondary" onClick={() => setPendingId(c.ndlBibId)}>
+									コレクションに追加
+								</button>
+							)}
 							{addError?.ndlBibId === c.ndlBibId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
 							)}

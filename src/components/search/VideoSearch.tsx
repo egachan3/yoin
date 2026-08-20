@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { ReviewStep, type ReviewValues } from "@/components/search/ReviewStep";
 import { buildImageUrl } from "@/lib/sources/tmdb";
 import { SUBTYPE_LABELS } from "@/lib/categories";
 
@@ -32,6 +33,9 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<number | null>(null);
 	const [addError, setAddError] = useState<{ tmdbId: number; message: string } | null>(null);
+	// 「コレクションに追加」をタップした候補のtmdbId。nullなら誰も選んでいない状態。
+	// 押した候補のカードだけ、ボタンを星評価・感想の入力ステップに差し替える
+	const [pendingId, setPendingId] = useState<number | null>(null);
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -54,13 +58,18 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 		setStatus("idle");
 	}
 
-	async function handleAdd(candidate: MovieCandidate) {
+	async function handleAdd(candidate: MovieCandidate, review: ReviewValues) {
 		setAddingId(candidate.tmdbId);
 		setAddError(null);
 		const res = await fetch("/api/shelf/movies", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ mediaType: candidate.mediaType, tmdbId: candidate.tmdbId }),
+			body: JSON.stringify({
+				mediaType: candidate.mediaType,
+				tmdbId: candidate.tmdbId,
+				rating: review.rating,
+				comment: review.comment,
+			}),
 		});
 		setAddingId(null);
 		if (res.ok) {
@@ -106,14 +115,17 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
 							<p className="card-title">{c.title}</p>
 							<p className="card-meta">{c.releaseDate ?? "公開日不明"}</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingId === c.tmdbId}
-							>
-								{addingId === c.tmdbId ? "追加中…" : "コレクションに追加"}
-							</button>
+							{pendingId === c.tmdbId ? (
+								<ReviewStep
+									submitting={addingId === c.tmdbId}
+									onSubmit={(review) => handleAdd(c, review)}
+									onCancel={() => setPendingId(null)}
+								/>
+							) : (
+								<button type="button" className="btn btn-secondary" onClick={() => setPendingId(c.tmdbId)}>
+									コレクションに追加
+								</button>
+							)}
 							{addError?.tmdbId === c.tmdbId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
 							)}

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { compressImage } from "@/lib/image-compress";
 import { SUBTYPE_LABELS, SUBTYPE_ICON, aspectRatioFor, isSubtype } from "@/lib/categories";
+import { COMMENT_MAX_LENGTH } from "@/lib/review";
 
 function todayLocalDate(): string {
 	const now = new Date();
@@ -26,6 +27,8 @@ function ManualEntryForm() {
 	const subtype = isSubtype(subtypeParam) ? subtypeParam : null;
 	const [title, setTitle] = useState(searchParams.get("title") ?? "");
 	const [date, setDate] = useState(todayLocalDate());
+	const [rating, setRating] = useState<number | null>(null);
+	const [comment, setComment] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [imageBlob, setImageBlob] = useState<Blob | null>(null);
@@ -74,6 +77,12 @@ function ManualEntryForm() {
 			formData.set("subtype", subtype);
 			formData.set("title", title);
 			formData.set("date", date);
+			if (rating !== null) {
+				formData.set("rating", String(rating));
+			}
+			if (comment.trim()) {
+				formData.set("comment", comment.trim());
+			}
 			if (imageBlob) {
 				formData.set("image", imageBlob, "photo.jpg");
 			}
@@ -207,6 +216,54 @@ function ManualEntryForm() {
 						value={date}
 						onChange={(e) => setDate(e.target.value)}
 					/>
+				</div>
+
+				<div className="field">
+					<label>評価</label>
+					<div style={{ display: "flex", gap: 2 }} role="radiogroup" aria-label="評価">
+						{[1, 2, 3, 4, 5].map((n) => {
+							const filled = rating !== null && rating >= n;
+							return (
+								<button
+									key={n}
+									type="button"
+									role="radio"
+									aria-checked={rating === n}
+									aria-label={`${n}点`}
+									// 同じ星をもう一度押すと評価を取り消せる(評価は任意項目のため)
+									onClick={() => setRating(rating === n ? null : n)}
+									style={{
+										background: "transparent",
+										border: "none",
+										cursor: "pointer",
+										padding: 2,
+										fontSize: 26,
+										lineHeight: 1,
+										color: filled ? "var(--color-accent)" : "var(--color-divider)",
+									}}
+								>
+									{filled ? "★" : "☆"}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+
+				<div className="field">
+					<label htmlFor="comment">感想</label>
+					<textarea
+						id="comment"
+						className="input"
+						value={comment}
+						maxLength={COMMENT_MAX_LENGTH}
+						onChange={(e) => setComment(e.target.value)}
+						placeholder="感想(任意)"
+						rows={2}
+						style={{ resize: "none" }}
+					/>
+					<p className="card-meta" style={{ textAlign: "right", marginTop: 2 }}>
+						{comment.length}/{COMMENT_MAX_LENGTH}
+					</p>
 				</div>
 
 				{error && <p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{error}</p>}

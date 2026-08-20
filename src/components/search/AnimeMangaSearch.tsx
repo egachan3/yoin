@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { ReviewStep, type ReviewValues } from "@/components/search/ReviewStep";
 import { SUBTYPE_LABELS } from "@/lib/categories";
 
 // 「アニメ」「マンガ」がそれぞれ独立したカテゴリ(=独立したルート)になったため、
@@ -41,6 +42,8 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 	const [status, setStatus] = useState<"idle" | "loading">("idle");
 	const [searchError, setSearchError] = useState<string | null>(null);
 	const [addingKey, setAddingKey] = useState<string | null>(null);
+	// 「コレクションに追加」をタップした候補のkey。VideoSearchのpendingIdと同じ考え方
+	const [pendingKey, setPendingKey] = useState<string | null>(null);
 	// 実行中の検索を識別する連番。stateはクロージャに呼び出し時点の値で固定される
 	// ため、await後の判定には使えない。refなら常に最新値を読めるので、
 	// 別クエリで再検索した後に到着した古いレスポンスを確実に破棄できる
@@ -119,7 +122,7 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 		await runSearch(0, false, query);
 	}
 
-	async function handleAdd(candidate: MalCandidate) {
+	async function handleAdd(candidate: MalCandidate, review: ReviewValues) {
 		const key = candidateKey(candidate);
 		setAddingKey(key);
 		setAddError(null);
@@ -129,7 +132,12 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 				headers: { "Content-Type": "application/json" },
 				// 画面のsubtypeではなく候補自身が持つmediaTypeを送る
 				// (候補とリクエストが必ず一致することを保証するため)
-				body: JSON.stringify({ mediaType: candidate.mediaType, malId: candidate.malId }),
+				body: JSON.stringify({
+					mediaType: candidate.mediaType,
+					malId: candidate.malId,
+					rating: review.rating,
+					comment: review.comment,
+				}),
 			});
 			if (res.ok) {
 				router.push("/");
@@ -190,14 +198,17 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 							<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
 								<p className="card-title">{c.titleJa?.trim() || c.title}</p>
 								<p className="card-meta">{subtitle(c) || "情報なし"}</p>
-								<button
-									type="button"
-									className="btn btn-secondary"
-									onClick={() => handleAdd(c)}
-									disabled={addingKey === key}
-								>
-									{addingKey === key ? "追加中…" : "コレクションに追加"}
-								</button>
+								{pendingKey === key ? (
+									<ReviewStep
+										submitting={addingKey === key}
+										onSubmit={(review) => handleAdd(c, review)}
+										onCancel={() => setPendingKey(null)}
+									/>
+								) : (
+									<button type="button" className="btn btn-secondary" onClick={() => setPendingKey(key)}>
+										コレクションに追加
+									</button>
+								)}
 								{addError?.key === key && (
 									<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
 								)}
