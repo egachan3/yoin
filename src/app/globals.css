@@ -27,10 +27,14 @@
 
   /* accentは黒一色のため、100〜900は濃淡ではなく「黒地に白文字」を
      基準にした薄いグレー〜黒のグラデーションとして再定義する
-     (旧: コーラルオレンジの濃淡。参照するコンポーネント側の意味は変えない) */
-  --color-accent-100: #f4f4ef;
-  --color-accent-200: #e5e5e0;
-  --color-accent-300: #d1d1cb;
+     (旧: コーラルオレンジの濃淡。参照するコンポーネント側の意味は変えない)。
+     【reviewer指摘で修正】100を--color-bgと同値(#f4f4ef)にすると、
+     ページ背景上に置かれるバッジ(CategorySheetのアイコン円等)が背景に
+     完全に溶けて見えなくなる。ページ背景・カード背景(白)のどちらの上でも
+     視認できるよう、両方から明確に離した値にする */
+  --color-accent-100: #e9e9e3;
+  --color-accent-200: #d1d1cb;
+  --color-accent-300: #b0b0aa;
   --color-accent-400: #929292;
   --color-accent-500: #454545;
   --color-accent-600: #2b2b2b;
@@ -38,9 +42,12 @@
   --color-accent-800: #171717;
   --color-accent-900: #0a0a0a;
 
-  /* accent-2(旧パープル)はセカンダリのニュートラルグレーへ置き換え */
+  /* accent-2(旧パープル)はセカンダリのニュートラルグレーへ置き換え。
+     200も同じ理由(reviewer指摘)でbg/surfaceと被らない値にする
+     (profile/page.tsxのアバター円が--color-surface(白)の上で
+     視認しづらくなっていた) */
   --color-accent-2-100: #fbfbfa;
-  --color-accent-2-200: #f4f4ef;
+  --color-accent-2-200: #e9e9e3;
   --color-accent-2-300: #e5e5e0;
   --color-accent-2-400: #d1d1cb;
   --color-accent-2-500: #b0b0aa;
