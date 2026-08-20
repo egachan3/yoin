@@ -46,14 +46,13 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 	const categories = summarizeByCategory(entries, counts);
 
 	return (
-		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-2)" }}>
+		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<div
 				style={{
 					display: "flex",
 					justifyContent: "space-between",
 					alignItems: "flex-start",
 					gap: "var(--space-2)",
-					paddingInline: "var(--space-2)",
 					marginBottom: "var(--space-6)",
 				}}
 			>
@@ -67,11 +66,9 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 			</div>
 
 			{categories.length === 0 ? (
-				<p className="text-muted" style={{ paddingInline: "var(--space-2)" }}>
-					まだ何も記録がありません。
-				</p>
+				<p className="text-muted">まだ何も記録がありません。</p>
 			) : (
-				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-2)" }}>
+				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-4)" }}>
 					{categories.map((category) => (
 						<CategoryCard
 							key={category.subtype}

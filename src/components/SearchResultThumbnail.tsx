@@ -18,7 +18,7 @@ export function SearchResultThumbnail({ src, alt, aspectRatio = "2 / 3" }: Searc
 		// aspectRatioで意図した比率が崩れる(レビュー指摘)。自分だけstretchを外す
 		alignSelf: "flex-start",
 		aspectRatio,
-		borderRadius: "var(--radius-md)",
+		borderRadius: "var(--radius-image)",
 		background: "var(--color-accent-100)",
 	};
 

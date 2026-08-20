@@ -44,7 +44,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 								aspectRatio: aspectRatioFor(entry.subtype),
 								right: `${8 + depthFromFront * 14}%`,
 								bottom: `${8 + depthFromFront * 14}%`,
-								borderRadius: "var(--radius-sm)",
+								borderRadius: "var(--radius-image)",
 								overflow: "hidden",
 								boxShadow: "var(--shadow-sm)",
 								background: "var(--color-neutral-200)",
