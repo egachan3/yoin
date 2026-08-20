@@ -34,6 +34,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 				{stack.map((entry, i) => {
 					const depthFromFront = stack.length - 1 - i;
 					const src = resolveEntryImageSrc(entry);
+					const isIcon = isPlaceholderIconSrc(src);
 					return (
 						<div
 							key={entry.id}
@@ -50,7 +51,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 								zIndex: stack.length - depthFromFront,
 							}}
 						>
-							{src && isPlaceholderIconSrc(src) && (
+							{src && isIcon && (
 								// eslint-disable-next-line @next/next/no-img-element -- カード内サムネイルのため次のimage最適化は別途検討
 								<img
 									src={src}
@@ -65,7 +66,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 									}}
 								/>
 							)}
-							{src && !isPlaceholderIconSrc(src) && (
+							{src && !isIcon && (
 								// eslint-disable-next-line @next/next/no-img-element -- カード内サムネイルのため次のimage最適化は別途検討
 								<img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
 							)}
