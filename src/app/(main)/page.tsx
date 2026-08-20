@@ -30,13 +30,13 @@ export default async function Home() {
 	const categories = summarizeByCategory(entries, counts);
 
 	return (
-		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-2)" }}>
+		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>
 			<h1 style={{ fontSize: 24, marginBottom: "var(--space-6)" }}>@{session.user.handle}のコレクション</h1>
 
 			{categories.length === 0 ? (
 				<p className="text-muted">まだ何も追加されていません。右下の+から最初の1件を記録してみましょう。</p>
 			) : (
-				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-2)" }}>
+				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "var(--space-4)" }}>
 					{categories.map((category) => (
 						<CategoryCard key={category.subtype} category={category} href={`/shelf/${category.subtype}`} />
 					))}

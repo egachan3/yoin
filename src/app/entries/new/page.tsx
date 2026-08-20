@@ -126,7 +126,7 @@ function ManualEntryForm() {
 							width: 160,
 							// アルバムジャケットは正方形が通例のため、音楽のみ1:1にする
 							aspectRatio: aspectRatioFor(subtype),
-							borderRadius: "var(--radius-md)",
+							borderRadius: "var(--radius-image)",
 							overflow: "hidden",
 							background: "var(--color-accent-100)",
 							marginInline: "auto",
