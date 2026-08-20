@@ -1,64 +1,88 @@
-/* Organic — Claude Design(claude.ai/design)で確定したデザインシステムのトークン・コンポーネントCSS。
-   配色はセクション8「ブランドカラー: ポップパステル」を踏まえコーラルオレンジ/パープルに調整済み。
-   claude.ai/design側のプロジェクト(theme.json / styles.css)を更新した場合はここも同期すること。 */
-@import url('https://fonts.googleapis.com/css2?family=Caprasimo:wght@400&family=Figtree:wght@400;600;700&display=swap');
+/* Global Design System(2026-08-19、Obsidian Projects/Yoin/global-design-system.md参照)。
+   ポップパステル(コーラルオレンジ/パープル)の旧デザインから、低密度・高余白の
+   モノクロ基調デザインへ全面刷新。変数名は既存コードからの参照を壊さないよう
+   そのまま残し、値だけをこのトークンセットに合わせて置き換えている。
+   カラー2種目(accent-2)は廃止し、グレースケールで代替した。 */
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
 
 :root {
-  --color-bg: #f5ead8;
-  --color-surface: #ebddc5;
-  --color-text: #201e1d;
-  --color-accent: #ef5b36;
-  --color-accent-2: #a17adf;
-  --color-divider: color-mix(in srgb, #201e1d 16%, transparent);
+  --color-bg: #f4f4ef;
+  --color-surface: #ffffff;
+  --color-text: #171717;
+  --color-accent: #171717;
+  --color-accent-2: #929292;
+  --color-divider: color-mix(in srgb, #707070 22%, transparent);
 
-  --color-neutral-100: #f9f4ed;
-  --color-neutral-200: #eee7db;
-  --color-neutral-300: #dcd3c4;
-  --color-neutral-400: #c0b6a5;
-  --color-neutral-500: #a19786;
-  --color-neutral-600: #82796a;
-  --color-neutral-700: #645c50;
-  --color-neutral-800: #474238;
-  --color-neutral-900: #2e2b25;
+  /* ライト(背景寄り)→ダーク(#171717寄り)のグレースケール。
+     旧トークンのポジション(100=最も薄い〜900=最も濃い)を踏襲する */
+  --color-neutral-100: #fbfbfa;
+  --color-neutral-200: #f4f4ef;
+  --color-neutral-300: #e5e5e0;
+  --color-neutral-400: #d1d1cb;
+  --color-neutral-500: #b0b0aa;
+  --color-neutral-600: #929292;
+  --color-neutral-700: #707070;
+  --color-neutral-800: #454545;
+  --color-neutral-900: #171717;
 
-  --color-accent-100: #fff0eb;
-  --color-accent-200: #ffdcd1;
-  --color-accent-300: #ffbba6;
-  --color-accent-400: #ff8d6d;
-  --color-accent-500: #ee6a4a;
-  --color-accent-600: #c74d2f;
-  --color-accent-700: #9e371d;
-  --color-accent-800: #712614;
-  --color-accent-900: #481c11;
+  /* accentは黒一色のため、100〜900は濃淡ではなく「黒地に白文字」を
+     基準にした薄いグレー〜黒のグラデーションとして再定義する
+     (旧: コーラルオレンジの濃淡。参照するコンポーネント側の意味は変えない)。
+     【reviewer指摘で修正】100を--color-bgと同値(#f4f4ef)にすると、
+     ページ背景上に置かれるバッジ(CategorySheetのアイコン円等)が背景に
+     完全に溶けて見えなくなる。ページ背景・カード背景(白)のどちらの上でも
+     視認できるよう、両方から明確に離した値にする */
+  --color-accent-100: #e9e9e3;
+  --color-accent-200: #d1d1cb;
+  --color-accent-300: #b0b0aa;
+  --color-accent-400: #929292;
+  --color-accent-500: #454545;
+  --color-accent-600: #2b2b2b;
+  --color-accent-700: #1f1f1f;
+  --color-accent-800: #171717;
+  --color-accent-900: #0a0a0a;
 
-  --color-accent-2-100: #f6f2ff;
-  --color-accent-2-200: #ece2ff;
-  --color-accent-2-300: #dcc9ff;
-  --color-accent-2-400: #c4a5fc;
-  --color-accent-2-500: #a584dc;
-  --color-accent-2-600: #8667b8;
-  --color-accent-2-700: #674d91;
-  --color-accent-2-800: #493768;
-  --color-accent-2-900: #302542;
+  /* accent-2(旧パープル)はセカンダリのニュートラルグレーへ置き換え。
+     200も同じ理由(reviewer指摘)でbg/surfaceと被らない値にする
+     (profile/page.tsxのアバター円が--color-surface(白)の上で
+     視認しづらくなっていた) */
+  --color-accent-2-100: #fbfbfa;
+  --color-accent-2-200: #e9e9e3;
+  --color-accent-2-300: #e5e5e0;
+  --color-accent-2-400: #d1d1cb;
+  --color-accent-2-500: #b0b0aa;
+  --color-accent-2-600: #929292;
+  --color-accent-2-700: #707070;
+  --color-accent-2-800: #454545;
+  --color-accent-2-900: #171717;
 
-  --font-heading: "Caprasimo", system-ui, sans-serif;
-  --font-heading-weight: 400;
+  /* 見出し用の装飾フォント(Caprasimo)は廃止し、本文と同じFigtreeの太字にする。
+     モノクロ・低密度の方向性に、丸みの強い装飾書体が合わなくなったため */
+  --font-heading: "Figtree", system-ui, sans-serif;
+  --font-heading-weight: 700;
   --font-body: "Figtree", system-ui, sans-serif;
 
-  --space-1: 4.4px;
-  --space-2: 8.8px;
-  --space-3: 13.2px;
-  --space-4: 17.6px;
-  --space-6: 26.4px;
-  --space-8: 35.2px;
+  /* 4pxグリッドに統一(旧スケールは4.4/8.8px等の半端な値だった)。
+     Grid gap・Horizontal page marginの指定値(16px)が space-4と一致する */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 18px;
+  /* 【重要】旧デザインとradiusの大小関係が逆転している(旧: カード>ボタン、
+     新: ボタン>カード)。既存の.card/.btn等のCSSクラスは変数の対応先だけ
+     入れ替えて追従させ、後続の画面別調整で個別のborder-radius直書きが
+     残っていないか確認すること */
+  --radius-sm: 4px;   /* カード(0-4px) */
+  --radius-md: 12px;  /* 入力欄・タグ等の中間サイズ */
+  --radius-lg: 28px;  /* ボタン(24-32px) */
+  --radius-image: 22px; /* 画像の角丸(18-28px)。カード/ボタンと独立した専用トークン */
 
-  --shadow-sm: 0 1px 2px color-mix(in srgb, #2e2b25 14%, transparent);
-  --shadow-md: 0 3px 10px color-mix(in srgb, #2e2b25 16%, transparent);
-  --shadow-lg: 0 12px 32px color-mix(in srgb, #2e2b25 22%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #171717 6%, transparent);
+  --shadow-md: 0 2px 6px color-mix(in srgb, #171717 8%, transparent);
+  --shadow-lg: 0 8px 24px color-mix(in srgb, #171717 12%, transparent);
 }
 
 body {
@@ -71,16 +95,19 @@ h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-headi
 .washed{filter:saturate(0.6) contrast(0.85) brightness(1.1) opacity(0.94)}
 
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+/* Body: 16-18px(規定)。旧15pxから引き上げ、低密度・高余白の方向性に合わせる */
+body { margin: 0; font-size: 16px; line-height: 1.55; font-weight: 400; }
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+  line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 var(--space-2);
 }
-h1 { font-size: 42px; }
-h2 { font-size: 32px; }
-h3 { font-size: 25px; }
-h4 { font-size: 20px; }
-h5 { font-size: 16px; }
+/* Primary heading: 32-40px / Section heading: 24-30px(規定)。h3以降は
+   Navigation(14-16px)・Metadata(12-14px)の帯まで滑らかに繋ぐ中間値 */
+h1 { font-size: 36px; }
+h2 { font-size: 26px; }
+h3 { font-size: 21px; }
+h4 { font-size: 18px; }
+h5 { font-size: 15px; }
 h6 { font-size: 13px; }
 h6 { letter-spacing: 0.08em; text-transform: uppercase; }
 p { margin: 0 0 var(--space-3); }
@@ -166,7 +193,8 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+  padding: var(--space-4); border-radius: var(--radius-md); background: var(--color-surface);
+  border: 1px solid var(--color-divider);
 }
 .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
 .card-title {
@@ -233,6 +261,10 @@ textarea.input { min-height: 90px; resize: vertical; }
 .dialog-body { font-size: 14px; opacity: 0.85; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
 
-.card, .dialog { border-radius: var(--radius-lg); }
-.btn, .tag, .seg, .input { border-radius: var(--radius-sm); }
-.input { padding-inline: 14px; }
+/* 新デザインの角丸ヒエラルキー(旧デザインとは大小関係が逆): カードはほぼ直角、
+   ボタンはピル、入力欄・ダイアログはその中間、タグは完全な円形ピル */
+.card { border-radius: var(--radius-sm); }
+.dialog { border-radius: var(--radius-md); }
+.btn, .seg { border-radius: var(--radius-lg); }
+.tag { border-radius: 999px; }
+.input { border-radius: var(--radius-md); padding-inline: 14px; }

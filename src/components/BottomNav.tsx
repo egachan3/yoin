@@ -11,6 +11,10 @@ export const BOTTOM_NAV_HEIGHT = 88;
 // ピルの内側に収まるよう、アイコン22px→20px・ラベル11px→10pxへ少し縮小した
 // (Shelf風のピル構造に変更した際、3タブ分のラベルがピル内で詰まったため)
 const PILL_HEIGHT = 56;
+// Global Design System(Obsidian Projects/Yoin/global-design-system.md)の
+// 「Floating button: 64px circle」規定値。BOTTOM_NAV_HEIGHT(88px)の範囲内に
+// 収まるためレイアウト側の調整は不要
+const ADD_BUTTON_SIZE = 64;
 
 const TABS = [
 	{
@@ -157,8 +161,8 @@ export function BottomNav() {
 						display: "flex",
 						alignItems: "center",
 						justifyContent: "center",
-						width: PILL_HEIGHT,
-						height: PILL_HEIGHT,
+						width: ADD_BUTTON_SIZE,
+						height: ADD_BUTTON_SIZE,
 						flexShrink: 0,
 						borderRadius: "50%",
 						background: "var(--color-accent)",
