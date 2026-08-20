@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SUBTYPE_LABELS, aspectRatioFor, type CategorySummary } from "@/lib/categories";
-import { resolveEntryImageSrc } from "@/lib/entry-image";
+import { resolveEntryImageSrc, isPlaceholderIconSrc } from "@/lib/entry-image";
 
 /**
  * カテゴリカード1枚。565:900の縦横比(実機で2列×3行がちょうど収まる
@@ -34,6 +34,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 				{stack.map((entry, i) => {
 					const depthFromFront = stack.length - 1 - i;
 					const src = resolveEntryImageSrc(entry);
+					const isIcon = isPlaceholderIconSrc(src);
 					return (
 						<div
 							key={entry.id}
@@ -50,7 +51,22 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 								zIndex: stack.length - depthFromFront,
 							}}
 						>
-							{src && (
+							{src && isIcon && (
+								// eslint-disable-next-line @next/next/no-img-element -- カード内サムネイルのため次のimage最適化は別途検討
+								<img
+									src={src}
+									alt=""
+									style={{
+										position: "absolute",
+										top: "50%",
+										left: "50%",
+										transform: "translate(-50%, -50%)",
+										width: "40%",
+										height: "40%",
+									}}
+								/>
+							)}
+							{src && !isIcon && (
 								// eslint-disable-next-line @next/next/no-img-element -- カード内サムネイルのため次のimage最適化は別途検討
 								<img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
 							)}

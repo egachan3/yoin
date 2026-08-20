@@ -4,7 +4,7 @@
 import { uuidv7 } from "uuidv7";
 import type { Kysely, Insertable } from "kysely";
 import type { Database, CatalogSource, ShelfEntryTable, Subtype } from "./schema";
-import { SUBTYPE_TO_GENRE } from "@/lib/categories";
+import { SUBTYPE_TO_GENRE, SUBTYPE_ICON } from "@/lib/categories";
 import type { NdlBookCandidate } from "@/lib/sources/ndl";
 import { fetchCoverByIsbn } from "@/lib/sources/google-books";
 import type { MusicCandidate } from "@/lib/sources/musicbrainz";
@@ -26,7 +26,6 @@ import {
   buildSourceUrl as buildIgdbSourceUrl,
   displayTitle as igdbDisplayTitle,
 } from "@/lib/sources/igdb";
-import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -810,9 +809,10 @@ export async function createManualCatalogEntity(
       genre: SUBTYPE_TO_GENRE[input.subtype],
       subtype: input.subtype,
       title: input.title,
-      // プレースホルダー画像はジャンル単位の5種のまま(アルバムと曲、映画とドラマで
-      // 絵を分ける必要はないため)
-      primary_image_ref: MANUAL_PLACEHOLDER_IMAGE[SUBTYPE_TO_GENRE[input.subtype]],
+      // プレースホルダー画像は⊕シート等で既に使っているsubtype単位8種のアイコン
+      // (SUBTYPE_ICON)をそのまま流用する(デザイン刷新に伴い、ジャンル単位5種の
+      // 専用SVGから一本化した。2026-08-20)
+      primary_image_ref: SUBTYPE_ICON[input.subtype],
       owner_user_id: input.ownerUserId,
       merged_into_id: null,
       created_at: now,

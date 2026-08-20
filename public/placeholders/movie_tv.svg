@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" role="img" aria-label="映画・ドラマ">
-  <rect width="240" height="360" fill="#fff0eb"/>
-  <rect x="50" y="130" width="140" height="100" rx="12" fill="#9e371d"/>
-  <rect x="62" y="142" width="116" height="76" rx="6" fill="#fff0eb"/>
-  <path d="M108 158 L108 202 L146 180 Z" fill="#9e371d"/>
-  <rect x="105" y="240" width="30" height="10" rx="4" fill="#9e371d"/>
-  <rect x="90" y="250" width="60" height="8" rx="4" fill="#9e371d"/>
-</svg>

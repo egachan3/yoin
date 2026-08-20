@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 360" role="img" aria-label="音楽">
-  <rect width="240" height="360" fill="#f6f2ff"/>
-  <rect x="118" y="120" width="8" height="130" fill="#8667b8"/>
-  <rect x="170" y="105" width="8" height="130" fill="#8667b8"/>
-  <path d="M118 120 L178 105 L178 125 L118 140 Z" fill="#8667b8"/>
-  <ellipse cx="108" cy="255" rx="20" ry="15" transform="rotate(-15 108 255)" fill="#8667b8"/>
-  <ellipse cx="160" cy="240" rx="20" ry="15" transform="rotate(-15 160 240)" fill="#8667b8"/>
-</svg>

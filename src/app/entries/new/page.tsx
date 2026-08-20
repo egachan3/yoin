@@ -3,9 +3,8 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { MANUAL_PLACEHOLDER_IMAGE } from "@/lib/manual-entry";
 import { compressImage } from "@/lib/image-compress";
-import { SUBTYPE_LABELS, SUBTYPE_TO_GENRE, aspectRatioFor, isSubtype } from "@/lib/categories";
+import { SUBTYPE_LABELS, SUBTYPE_ICON, aspectRatioFor, isSubtype } from "@/lib/categories";
 
 function todayLocalDate(): string {
 	const now = new Date();
@@ -131,14 +130,25 @@ function ManualEntryForm() {
 							overflow: "hidden",
 							background: "var(--color-accent-100)",
 							marginInline: "auto",
+							// プレースホルダー(⊕シートと同じsubtypeアイコン)はcoverで
+							// 引き伸ばさず、中央に固定サイズで表示する(アイコンは透過PNGの
+							// 小さいグリフのため、coverすると引き伸び・トリミングされて崩れる)
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
 						}}
 					>
-						{/* eslint-disable-next-line @next/next/no-img-element -- ローカルのBlob URL/静的アセットのため次のimage最適化は不要 */}
-						<img
-							src={imagePreviewUrl ?? MANUAL_PLACEHOLDER_IMAGE[SUBTYPE_TO_GENRE[subtype]]}
-							alt=""
-							style={{ width: "100%", height: "100%", objectFit: "cover" }}
-						/>
+						{imagePreviewUrl ? (
+							// eslint-disable-next-line @next/next/no-img-element -- ローカルのBlob URLのため次のimage最適化は不要
+							<img
+								src={imagePreviewUrl}
+								alt=""
+								style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+							/>
+						) : (
+							// eslint-disable-next-line @next/next/no-img-element -- 静的アセットのため次のimage最適化は不要
+							<img src={SUBTYPE_ICON[subtype]} alt="" style={{ width: 56, height: 56 }} />
+						)}
 						<button
 							type="button"
 							className="btn btn-icon"
