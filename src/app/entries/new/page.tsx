@@ -6,6 +6,7 @@ import Link from "next/link";
 import { compressImage } from "@/lib/image-compress";
 import { SUBTYPE_LABELS, SUBTYPE_ICON, aspectRatioFor, isSubtype } from "@/lib/categories";
 import { COMMENT_MAX_LENGTH } from "@/lib/review";
+import { StarRating } from "@/components/StarRating";
 
 function todayLocalDate(): string {
 	const now = new Date();
@@ -220,33 +221,7 @@ function ManualEntryForm() {
 
 				<div className="field">
 					<label>評価</label>
-					<div style={{ display: "flex", gap: 2 }} role="radiogroup" aria-label="評価">
-						{[1, 2, 3, 4, 5].map((n) => {
-							const filled = rating !== null && rating >= n;
-							return (
-								<button
-									key={n}
-									type="button"
-									role="radio"
-									aria-checked={rating === n}
-									aria-label={`${n}点`}
-									// 同じ星をもう一度押すと評価を取り消せる(評価は任意項目のため)
-									onClick={() => setRating(rating === n ? null : n)}
-									style={{
-										background: "transparent",
-										border: "none",
-										cursor: "pointer",
-										padding: 2,
-										fontSize: 26,
-										lineHeight: 1,
-										color: filled ? "var(--color-accent)" : "var(--color-divider)",
-									}}
-								>
-									{filled ? "★" : "☆"}
-								</button>
-							);
-						})}
-					</div>
+					<StarRating value={rating} onChange={setRating} disabled={submitting} />
 				</div>
 
 				<div className="field">
@@ -259,6 +234,7 @@ function ManualEntryForm() {
 						onChange={(e) => setComment(e.target.value)}
 						placeholder="感想(任意)"
 						rows={2}
+						disabled={submitting}
 						style={{ resize: "none" }}
 					/>
 					<p className="card-meta" style={{ textAlign: "right", marginTop: 2 }}>

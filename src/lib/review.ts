@@ -4,10 +4,12 @@ export const RATING_MIN = 1;
 export const RATING_MAX = 5;
 export const COMMENT_MAX_LENGTH = 50;
 
-// 追加時に星評価・感想を受け取る全APIで共通のスキーマ。両方とも任意項目
+// 追加時に星評価・感想を受け取る全APIで共通のスキーマ。両方とも任意項目。
+// commentは.trim()してから文字数上限を検証する(reviewer指摘: trim前に
+// 検証すると前後の空白込みでちょうど上限を超える入力を不当に拒否してしまう)
 export const ReviewFieldsSchema = z.object({
 	rating: z.number().int().min(RATING_MIN).max(RATING_MAX).nullable().optional(),
-	comment: z.string().max(COMMENT_MAX_LENGTH).nullable().optional(),
+	comment: z.string().trim().max(COMMENT_MAX_LENGTH).nullable().optional(),
 });
 
 export type ReviewFields = z.infer<typeof ReviewFieldsSchema>;

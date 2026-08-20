@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { StarRating } from "@/components/StarRating";
 import { COMMENT_MAX_LENGTH } from "@/lib/review";
 
 export interface ReviewValues {
@@ -28,34 +29,7 @@ export function ReviewStep({
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-			<div style={{ display: "flex", gap: 2 }} role="radiogroup" aria-label="評価">
-				{[1, 2, 3, 4, 5].map((n) => {
-					const filled = rating !== null && rating >= n;
-					return (
-						<button
-							key={n}
-							type="button"
-							role="radio"
-							aria-checked={rating === n}
-							aria-label={`${n}点`}
-							// 同じ星をもう一度押すと評価を取り消せる(評価は任意項目のため)
-							onClick={() => setRating(rating === n ? null : n)}
-							disabled={submitting}
-							style={{
-								background: "transparent",
-								border: "none",
-								cursor: "pointer",
-								padding: 2,
-								fontSize: 24,
-								lineHeight: 1,
-								color: filled ? "var(--color-accent)" : "var(--color-divider)",
-							}}
-						>
-							{filled ? "★" : "☆"}
-						</button>
-					);
-				})}
-			</div>
+			<StarRating value={rating} onChange={setRating} disabled={submitting} />
 			<div>
 				<textarea
 					className="input"
@@ -63,6 +37,7 @@ export function ReviewStep({
 					maxLength={COMMENT_MAX_LENGTH}
 					onChange={(e) => setComment(e.target.value)}
 					placeholder="感想(任意)"
+					aria-label="感想"
 					rows={2}
 					disabled={submitting}
 					style={{ resize: "none" }}
