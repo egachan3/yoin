@@ -1,4 +1,4 @@
-// 手動入力フォールバック機能の共通定義(プレースホルダー画像の割り当て、日付のパース)。
+// 手動入力フォールバック機能の共通定義(日付のパース)。
 // クライアント(フォーム)・サーバー(APIルート)の両方から参照するため、
 // Cloudflare/Node固有のimportを持たない純粋なモジュールにする。
 // 参照: shelf-type-app-spec.md セクション5.4「検索結果0件時のフォールバックUI」
@@ -8,18 +8,9 @@
 // ジャンルのラベルは8カテゴリのSUBTYPE_LABELS(src/lib/categories.ts)に置き換わり、
 // ステータス(予定/進行中/完了/保留/中断)はUIごと廃止された(引き継ぎ.md 3.5節)。
 // DBのstatus列自体は将来の復活に備えて残してある。
-
-import type { Genre } from "@/db/schema";
-
-// 5分類×1種の静的プレースホルダー画像(public/placeholders/配下の固定アセット)。
-// ユーザーアップロード・画像検索・外部URLはいずれも使わない(spec: モデレーション義務を避けるため)
-export const MANUAL_PLACEHOLDER_IMAGE: Record<Genre, string> = {
-  book: "/placeholders/book.svg",
-  music: "/placeholders/music.svg",
-  movie_tv: "/placeholders/movie_tv.svg",
-  anime_manga: "/placeholders/anime_manga.svg",
-  game: "/placeholders/game.svg",
-};
+// MANUAL_PLACEHOLDER_IMAGE(ジャンル単位5種の静的SVG)も、⊕シート等で既に
+// 使っているsubtype単位8種のアイコン(SUBTYPE_ICON、src/lib/categories.ts)に
+// 一本化したため削除した(デザイン刷新に伴うプレースホルダー差し替え、2026-08-20)。
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 

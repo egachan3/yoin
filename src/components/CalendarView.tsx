@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { CalendarMonth } from "@/lib/calendar";
-import { resolveEntryImageSrc } from "@/lib/entry-image";
+import { resolveEntryImageSrc, isPlaceholderIconSrc } from "@/lib/entry-image";
 import { aspectRatioFor } from "@/lib/categories";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 
@@ -57,6 +57,10 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 				{month.days.map((day) => {
 					const latest = day.entries[0];
 					const src = latest ? resolveEntryImageSrc(latest) : null;
+					// /icons/配下のsubtypeアイコンはobject-fit: coverで引き伸ばすと
+					// 不自然に拡大・トリミングされる(CategoryCardと同じ理由)。
+					// 実写真とアイコンで表示方法・日付バッジの配色を分ける
+					const isIcon = isPlaceholderIconSrc(src);
 					const isToday = day.dateKey === todayKey;
 					const isSelected = day.dateKey === selectedKey;
 					return (
@@ -87,7 +91,22 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 								cursor: "pointer",
 							}}
 						>
-							{src && (
+							{src && isIcon && (
+								// eslint-disable-next-line @next/next/no-img-element -- 静的アセットのため次のimage最適化は不要
+								<img
+									src={src}
+									alt=""
+									loading="lazy"
+									style={{
+										position: "absolute",
+										top: "50%",
+										left: "50%",
+										transform: "translate(-50%, -50%)",
+										width: "40%",
+									}}
+								/>
+							)}
+							{src && !isIcon && (
 								// eslint-disable-next-line @next/next/no-img-element -- カレンダーマス内サムネイルのため次のimage最適化は別途検討
 								<img
 									src={src}
@@ -102,8 +121,8 @@ export function CalendarView({ month, prevHref, nextHref, todayKey }: CalendarVi
 									top: 2,
 									left: 4,
 									fontSize: 11,
-									color: src ? "#fff" : "var(--color-text)",
-									textShadow: src ? "0 1px 2px rgba(0,0,0,0.6)" : "none",
+									color: src && !isIcon ? "#fff" : "var(--color-text)",
+									textShadow: src && !isIcon ? "0 1px 2px rgba(0,0,0,0.6)" : "none",
 								}}
 							>
 								{day.date}

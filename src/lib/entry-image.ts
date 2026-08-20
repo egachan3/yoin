@@ -19,3 +19,18 @@ export function resolveEntryImageSrc(
 	}
 	return null;
 }
+
+/**
+ * resolveEntryImageSrcが返す値が、実写真ではなく/icons/配下の
+ * subtypeアイコン(小さい透過PNGグリフ、SUBTYPE_ICON参照)かどうかを判定する。
+ * ユーザー写真・検索結果の書影/ジャケットは/icons/を経由しないため、
+ * パスのプレフィックスだけで確実に判別できる。
+ *
+ * 【用途】object-fit: coverでそのまま引き伸ばすと、小さいグリフが
+ * ぼやけて拡大表示されてしまう(手動追加エントリで画像未設定の場合に
+ * 常に発生する、レビューではなくユーザー実機確認で発覚)。呼び出し側で
+ * この判定を使い、アイコンの場合だけ中央固定サイズ表示に切り替える。
+ */
+export function isPlaceholderIconSrc(src: string | null): boolean {
+	return src !== null && src.startsWith("/icons/");
+}
