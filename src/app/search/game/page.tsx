@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { ReviewStep, type ReviewValues } from "@/components/search/ReviewStep";
 import { buildImageUrl } from "@/lib/sources/igdb";
 
 interface GameCandidate {
@@ -27,6 +28,8 @@ export default function GameSearchPage() {
 	const [searchError, setSearchError] = useState<string | null>(null);
 	const [addingId, setAddingId] = useState<number | null>(null);
 	const [addError, setAddError] = useState<{ igdbId: number; message: string } | null>(null);
+	// 「コレクションに追加」をタップした候補のigdbId。他画面のpendingIdと同じ考え方
+	const [pendingId, setPendingId] = useState<number | null>(null);
 	// 通信断・古いレスポンスの反映を避けるためのリクエスト連番(anime-mangaと同じ考え方)
 	const searchSeqRef = useRef(0);
 
@@ -64,14 +67,14 @@ export default function GameSearchPage() {
 		}
 	}
 
-	async function handleAdd(candidate: GameCandidate) {
+	async function handleAdd(candidate: GameCandidate, review: ReviewValues) {
 		setAddingId(candidate.igdbId);
 		setAddError(null);
 		try {
 			const res = await fetch("/api/shelf/games", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ igdbId: candidate.igdbId }),
+				body: JSON.stringify({ igdbId: candidate.igdbId, rating: review.rating, comment: review.comment }),
 			});
 			if (res.ok) {
 				router.push("/");
@@ -131,14 +134,17 @@ export default function GameSearchPage() {
 						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
 							<p className="card-title">{c.titleJa?.trim() || c.title}</p>
 							<p className="card-meta">{subtitle(c) || "情報なし"}</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingId === c.igdbId}
-							>
-								{addingId === c.igdbId ? "追加中…" : "コレクションに追加"}
-							</button>
+							{pendingId === c.igdbId ? (
+								<ReviewStep
+									submitting={addingId === c.igdbId}
+									onSubmit={(review) => handleAdd(c, review)}
+									onCancel={() => setPendingId(null)}
+								/>
+							) : (
+								<button type="button" className="btn btn-secondary" onClick={() => setPendingId(c.igdbId)}>
+									コレクションに追加
+								</button>
+							)}
 							{addError?.igdbId === c.igdbId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
 							)}

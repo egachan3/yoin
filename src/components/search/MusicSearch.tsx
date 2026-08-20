@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
+import { ReviewStep, type ReviewValues } from "@/components/search/ReviewStep";
 import { SUBTYPE_LABELS } from "@/lib/categories";
 
 // 「アルバム」「曲」はそれぞれ独立したカテゴリ(=独立したルート)になったため、
@@ -48,6 +49,8 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const [addingId, setAddingId] = useState<string | null>(null);
 	const [addError, setAddError] = useState<{ sourceId: string; message: string } | null>(null);
+	// 「コレクションに追加」をタップした候補のsourceId。VideoSearchのpendingIdと同じ考え方
+	const [pendingId, setPendingId] = useState<string | null>(null);
 
 	async function runSearch(offset: number, append: boolean, targetQuery: string) {
 		if (!targetQuery.trim()) return;
@@ -86,7 +89,7 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 		await runSearch(0, false, query);
 	}
 
-	async function handleAdd(candidate: MusicCandidate) {
+	async function handleAdd(candidate: MusicCandidate, review: ReviewValues) {
 		setAddingId(candidate.sourceId);
 		setAddError(null);
 		const res = await fetch("/api/shelf/music", {
@@ -96,6 +99,8 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 				source: candidate.source,
 				sourceId: candidate.sourceId,
 				entityType: subtype,
+				rating: review.rating,
+				comment: review.comment,
 			}),
 		});
 		setAddingId(null);
@@ -142,14 +147,17 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 						<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", minWidth: 0, flex: 1 }}>
 							<p className="card-title">{c.title}</p>
 							<p className="card-meta">{c.artist ?? "アーティスト不明"}</p>
-							<button
-								type="button"
-								className="btn btn-secondary"
-								onClick={() => handleAdd(c)}
-								disabled={addingId === c.sourceId}
-							>
-								{addingId === c.sourceId ? "追加中…" : "コレクションに追加"}
-							</button>
+							{pendingId === c.sourceId ? (
+								<ReviewStep
+									submitting={addingId === c.sourceId}
+									onSubmit={(review) => handleAdd(c, review)}
+									onCancel={() => setPendingId(null)}
+								/>
+							) : (
+								<button type="button" className="btn btn-secondary" onClick={() => setPendingId(c.sourceId)}>
+									コレクションに追加
+								</button>
+							)}
 							{addError?.sourceId === c.sourceId && (
 								<p style={{ color: "var(--color-accent-800)", fontSize: 13, margin: 0 }}>{addError.message}</p>
 							)}

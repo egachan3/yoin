@@ -7,6 +7,7 @@ import { createManualCatalogEntity } from "@/db/catalog";
 import { parseManualDate } from "@/lib/manual-entry";
 import { isSubtype } from "@/lib/categories";
 import type { Subtype } from "@/db/schema";
+import { ReviewFieldsSchema, normalizeReviewFields, parseReviewFieldsFromFormData } from "@/lib/review";
 
 // 手動入力は外部APIへの再照会が存在しない(検索でヒットしなかった作品を記録するための
 // 経路のため)。他ジャンルの追加APIと異なり、クライアントから受け取ったtitle等を
@@ -64,6 +65,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_body", message: "日付が不正です。" }, { status: 422 });
   }
 
+  // rating/commentはFormDataの生値なので、他ルートと同じZodスキーマで
+  // 範囲(1-5)・最大長(50文字)を検証してから使う
+  const reviewParsed = ReviewFieldsSchema.safeParse(parseReviewFieldsFromFormData(formData));
+  if (!reviewParsed.success) {
+    return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
+  }
+  const review = normalizeReviewFields(reviewParsed.data);
+
   // 画像は任意。付いていれば形式・サイズを検証する(image-proxy.tsのContent-Type
   // 正規化と同じ考え方: パラメータを落として小文字化してから比較する)
   const imageField = formData.get("image");
@@ -105,8 +114,8 @@ export async function POST(request: Request) {
         status: "completed",
         is_revisiting: 0,
         revisit_count: 0,
-        comment: null,
-        rating: null,
+        comment: review.comment,
+        rating: review.rating,
         // 手動入力には尺データの取得元(source_records)が存在しないため、
         // 「未取得だが将来埋まりうる(pending)」ではなく構造的に対象外として扱う
         // (spec: リキャップの推定消費時間からの除外理由と同じ考え方)

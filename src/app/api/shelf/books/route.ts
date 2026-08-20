@@ -6,15 +6,18 @@ import { createDb } from "@/db/client";
 import { findOrCreateBookCatalogEntity } from "@/db/catalog";
 import { parsePageCount, estimateReadingSeconds } from "@/lib/sources/book-extent";
 import { verifyBookCandidate } from "@/lib/sources/ndl";
+import { ReviewFieldsSchema, normalizeReviewFields } from "@/lib/review";
 
 // title/isbnはNDLへの再照会のヒントとしてのみ使う(下記参照)。
 // creator/publisher/extentRawはクライアントから受け取らない
 // (再照会結果のみを信頼する)
-const AddBookSchema = z.object({
-  ndlBibId: z.string().min(1).max(50),
-  title: z.string().min(1).max(500),
-  isbn: z.string().max(20).nullable(),
-});
+const AddBookSchema = z
+  .object({
+    ndlBibId: z.string().min(1).max(50),
+    title: z.string().min(1).max(500),
+    isbn: z.string().max(20).nullable(),
+  })
+  .extend(ReviewFieldsSchema.shape);
 
 export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -57,6 +60,7 @@ export async function POST(request: Request) {
 
   const pageCount = parsePageCount(candidate.extentRaw);
   const estimatedSeconds = estimateReadingSeconds(pageCount);
+  const review = normalizeReviewFields(parsed.data);
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
 
@@ -79,8 +83,8 @@ export async function POST(request: Request) {
         status: "completed",
         is_revisiting: 0,
         revisit_count: 0,
-        comment: null,
-        rating: null,
+        comment: review.comment,
+        rating: review.rating,
         estimated_duration_seconds: estimatedSeconds,
         // extentがパースできなかった場合はduration_pending=1
         // (将来のパーサー改善や手動修正で埋まり得るという扱い。

@@ -6,15 +6,18 @@ import { createDb } from "@/db/client";
 import { findOrCreateMusicCatalogEntity, type MusicSourceCandidate } from "@/db/catalog";
 import { verifyRecordingById, verifyReleaseGroupById, fetchReleaseGroupDurationMs } from "@/lib/sources/musicbrainz";
 import { verifyById as verifyItunesById, fetchAlbumDurationMs } from "@/lib/sources/itunes";
+import { ReviewFieldsSchema, normalizeReviewFields } from "@/lib/review";
 
 // sourceId/entityTypeのみを「再照会のヒント」として受け取る。title/artist等は
 // クライアントから受け取らない(booksのverifyBookCandidateと同じ考え方: 再照会
 // 結果のみを信頼する)
-const AddMusicSchema = z.object({
-  source: z.enum(["musicbrainz", "itunes"]),
-  sourceId: z.string().min(1).max(100),
-  entityType: z.enum(["song", "album"]),
-});
+const AddMusicSchema = z
+  .object({
+    source: z.enum(["musicbrainz", "itunes"]),
+    sourceId: z.string().min(1).max(100),
+    entityType: z.enum(["song", "album"]),
+  })
+  .extend(ReviewFieldsSchema.shape);
 
 /**
  * クライアントが送ってきたID(MBIDまたはiTunes numeric id)を、各ソースへの
@@ -77,6 +80,7 @@ export async function POST(request: Request) {
         : await fetchAlbumDurationMs(candidate.sourceId);
   }
   const estimatedSeconds = lengthMs !== null ? Math.round(lengthMs / 1000) : null;
+  const review = normalizeReviewFields(parsed.data);
 
   const now = Math.floor(Date.now() / 1000);
   const entryId = uuidv7();
@@ -93,8 +97,8 @@ export async function POST(request: Request) {
       status: "completed",
       is_revisiting: 0,
       revisit_count: 0,
-      comment: null,
-      rating: null,
+      comment: review.comment,
+      rating: review.rating,
       estimated_duration_seconds: estimatedSeconds,
       duration_pending: lengthMs === null ? 1 : 0,
       raw_duration_value: lengthMs !== null ? String(lengthMs) : null,
