@@ -150,7 +150,10 @@ export function BottomNav() {
 									background: active ? "var(--color-accent-100)" : "transparent",
 									fontSize: 10,
 									borderRadius: 999,
-									padding: "6px 12px",
+									// タップ領域確保のためpadding上下を8pxに(reviewer指摘、
+									// アイコン18px縮小に伴いiOS/Android推奨タップ領域44pt前後を
+									// 下回りかけていたため)
+									padding: "8px 12px",
 								}}
 							>
 								{tab.icon}
