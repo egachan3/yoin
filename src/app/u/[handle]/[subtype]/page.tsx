@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -9,7 +10,6 @@ import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { SUBTYPE_LABELS, isSubtype } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { ReportButton } from "@/components/ReportButton";
 
 /**
@@ -77,8 +77,11 @@ export default async function PublicCategoryDetailPage({
 				</div>
 			)}
 
-			{/* TMDBの利用規約上、映画/ドラマの画面には帰属表示が必須(レビュー指摘) */}
-			{(subtypeParam === "movie" || subtypeParam === "tv") && <TmdbAttribution />}
+			{/* 未ログインの訪問者は設定画面(TMDB帰属表示の集約先)に到達できないため、
+			    ログイン不要のこのページから/aboutへの導線を用意する */}
+			<Link href="/about" className="text-muted" style={{ display: "inline-block", fontSize: 12, marginTop: "var(--space-8)" }}>
+				このアプリについて
+			</Link>
 		</main>
 	);
 }

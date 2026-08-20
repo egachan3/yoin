@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -8,7 +9,6 @@ import { normalizeHandle } from "@/lib/handle";
 import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { summarizeByCategory } from "@/lib/categories";
 import { CategoryCard } from "@/components/CategoryCard";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { ReportButton } from "@/components/ReportButton";
 import { BlockButton } from "@/components/BlockButton";
 
@@ -79,10 +79,11 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 				</div>
 			)}
 
-			{/* TMDBの利用規約上、映画/TV情報を表示する画面には帰属表示が必須。
-			    (main)/page.tsxと同じ条件で判定する(CategoryCard切り出し時に
-			    ここだけ移し忘れていた、レビュー指摘) */}
-			{entries.some((entry) => entry.genre === "movie_tv") && <TmdbAttribution />}
+			{/* 未ログインの訪問者は設定画面(TMDB帰属表示の集約先)に到達できないため、
+			    ログイン不要のこのページから/aboutへの導線を用意する */}
+			<Link href="/about" className="text-muted" style={{ display: "inline-block", fontSize: 12, marginTop: "var(--space-8)" }}>
+				このアプリについて
+			</Link>
 		</main>
 	);
 }
