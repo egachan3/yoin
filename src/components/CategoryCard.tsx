@@ -2,10 +2,20 @@ import Link from "next/link";
 import { SUBTYPE_LABELS, aspectRatioFor, type CategorySummary } from "@/lib/categories";
 import { resolveEntryImageSrc, isPlaceholderIconSrc } from "@/lib/entry-image";
 
+// 直近3件(RECENT_ENTRIES_PER_CATEGORY)を前提にした扇状の重なり方。
+// 手前(最新)を中央に正立させ、奥の2件を左右に振り分けて少し回転させる
+// (global-design-system.mdの参考デザインのカード表現に寄せた構図)
+const FAN_LAYOUT = [
+	{ rotate: 0, offsetX: 0, offsetY: 0 },
+	{ rotate: -7, offsetX: -19, offsetY: 3 },
+	{ rotate: 7, offsetX: 19, offsetY: 5 },
+] as const;
+
 /**
  * カテゴリカード1枚。565:900の縦横比(実機で2列×3行がちょうど収まる
  * サイズ感として決定済み、引き継ぎ.md 3.5節)。直近追加分(最大3件)の
- * 画像を右下から左上へ重ねて表示する(Shelfのカードの見せ方を参考にした)。
+ * 画像を、手前(最新)を中央正立・奥2件を左右に扇状展開して重ねる
+ * (Shelfのカードの見せ方を参考にした)。
  *
  * 自分の棚(main)/page.tsxと公開棚/u/[handle]/page.tsxの両方から使う
  * 共通コンポーネント。タップ先のhrefだけが両者で異なるため引数に取る。
@@ -33,6 +43,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 			<div style={{ position: "relative", flex: 1, background: "var(--color-accent-100)" }}>
 				{stack.map((entry, i) => {
 					const depthFromFront = stack.length - 1 - i;
+					const fan = FAN_LAYOUT[depthFromFront] ?? FAN_LAYOUT[FAN_LAYOUT.length - 1];
 					const src = resolveEntryImageSrc(entry);
 					const isIcon = isPlaceholderIconSrc(src);
 					return (
@@ -40,10 +51,11 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 							key={entry.id}
 							style={{
 								position: "absolute",
-								width: "72%",
+								width: "62%",
 								aspectRatio: aspectRatioFor(entry.subtype),
-								right: `${8 + depthFromFront * 14}%`,
-								bottom: `${8 + depthFromFront * 14}%`,
+								left: "50%",
+								top: "50%",
+								transform: `translate(-50%, -50%) translate(${fan.offsetX}%, ${fan.offsetY}%) rotate(${fan.rotate}deg)`,
 								borderRadius: "var(--radius-image)",
 								overflow: "hidden",
 								boxShadow: "var(--shadow-sm)",
