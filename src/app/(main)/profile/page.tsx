@@ -57,7 +57,7 @@ export default async function ProfilePage() {
 
 			<section style={{ marginTop: "var(--space-8)" }} aria-labelledby="stats-heading">
 				<h2 id="stats-heading" style={{ fontSize: 20, marginBottom: "var(--space-3)" }}>記録の内訳</h2>
-				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "var(--space-2)" }}>
+				<div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "var(--space-4)" }}>
 					<div className="card" style={{ background: "var(--color-accent-100)", minHeight: 88 }}>
 						<span className="card-meta">全体</span>
 						<strong style={{ fontFamily: "var(--font-heading)", fontSize: 28, lineHeight: 1 }}>{total}</strong>
