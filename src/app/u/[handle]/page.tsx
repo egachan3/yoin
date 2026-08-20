@@ -8,7 +8,6 @@ import { normalizeHandle } from "@/lib/handle";
 import { resolvePublicShelfAccess } from "@/lib/public-shelf";
 import { summarizeByCategory } from "@/lib/categories";
 import { CategoryCard } from "@/components/CategoryCard";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { ReportButton } from "@/components/ReportButton";
 import { BlockButton } from "@/components/BlockButton";
 
@@ -78,11 +77,6 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 					))}
 				</div>
 			)}
-
-			{/* TMDBの利用規約上、映画/TV情報を表示する画面には帰属表示が必須。
-			    (main)/page.tsxと同じ条件で判定する(CategoryCard切り出し時に
-			    ここだけ移し忘れていた、レビュー指摘) */}
-			{entries.some((entry) => entry.genre === "movie_tv") && <TmdbAttribution />}
 		</main>
 	);
 }

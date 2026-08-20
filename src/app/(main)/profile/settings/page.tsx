@@ -8,6 +8,7 @@ import { listBlockedUsers } from "@/db/blocks";
 import { isAdminEmail } from "@/lib/admin";
 import { ProfileSettingsForm } from "@/components/ProfileSettingsForm";
 import { BlockedUsersList } from "@/components/BlockedUsersList";
+import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 export default async function ProfileSettingsPage() {
 	const { env } = await getCloudflareContext({ async: true });
@@ -49,6 +50,14 @@ export default async function ProfileSettingsPage() {
 						</Link>
 					</section>
 				)}
+				<section className="card" style={{ gap: "var(--space-3)" }} aria-labelledby="about-heading">
+					<h2 id="about-heading" style={{ fontSize: 20, marginBottom: 3 }}>このアプリについて</h2>
+					{/* TMDBの帰属表示。利用規約上「About/Credits」的なセクションへの
+					    集約が公式に認められている(各コンテンツ画面への個別表示は不要)。
+					    以前は棚トップ・カテゴリ詳細・公開棚・検索画面にも表示していたが、
+					    この設定画面1箇所に集約した */}
+					<TmdbAttribution />
+				</section>
 			</div>
 		</main>
 	);

@@ -4,7 +4,6 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createAuth } from "@/lib/auth";
 import { createDb } from "@/db/client";
 import { listCategoryCounts, listShelfEntries } from "@/db/shelf";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { summarizeByCategory } from "@/lib/categories";
 import { CategoryCard } from "@/components/CategoryCard";
 
@@ -42,8 +41,6 @@ export default async function Home() {
 					))}
 				</div>
 			)}
-
-			{entries.some((entry) => entry.genre === "movie_tv") && <TmdbAttribution />}
 		</main>
 	);
 }

@@ -7,7 +7,6 @@ import { listShelfEntriesBySubtype } from "@/db/shelf";
 import { SUBTYPE_LABELS, isSubtype } from "@/lib/categories";
 import { resolveEntryImageSrc } from "@/lib/entry-image";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 
 /**
  * カテゴリ1つ分の一覧画面。棚トップのカードをタップした先。
@@ -68,11 +67,6 @@ export default async function CategoryDetailPage({ params }: { params: Promise<{
 					))}
 				</div>
 			)}
-
-			{/* TMDBの利用規約上、映画/ドラマの画面には帰属表示が必須。
-			    棚トップ(main)/page.tsxにはあったが、このカテゴリ詳細画面には
-			    元々なかった(既存の抜け、公開棚PRのレビューで発見) */}
-			{(subtypeParam === "movie" || subtypeParam === "tv") && <TmdbAttribution />}
 		</main>
 	);
 }

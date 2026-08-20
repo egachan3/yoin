@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { TmdbAttribution } from "@/components/TmdbAttribution";
 import { SearchResultThumbnail } from "@/components/SearchResultThumbnail";
 import { buildImageUrl } from "@/lib/sources/tmdb";
 import { SUBTYPE_LABELS } from "@/lib/categories";
@@ -122,8 +121,6 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 					</div>
 				))}
 			</div>
-
-			<TmdbAttribution />
 		</main>
 	);
 }
