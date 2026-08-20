@@ -8,9 +8,9 @@ import { CategorySheet } from "./CategorySheet";
 // バー全体(浮いた余白込み)の高さ(px)。layout.tsx側の本文paddingBottomと
 // 同じ値を参照させることで、どちらか一方だけ変更してズレる事故を防ぐ
 export const BOTTOM_NAV_HEIGHT = 88;
-// ピルの内側に収まるよう、アイコン22px→20px・ラベル11px→10pxへ少し縮小した
-// (Shelf風のピル構造に変更した際、3タブ分のラベルがピル内で詰まったため)
-const PILL_HEIGHT = 56;
+// 参考デザイン(Shelf Home)を実測すると、ピルの高さは+ボタンとほぼ同じ
+// (どちらも64px相当)だったため揃えた
+const PILL_HEIGHT = 64;
 // Global Design System(Obsidian Projects/Yoin/global-design-system.md)の
 // 「Floating button: 64px circle」規定値。BOTTOM_NAV_HEIGHT(88px)の範囲内に
 // 収まるためレイアウト側の調整は不要
@@ -25,7 +25,7 @@ const TABS = [
 		matchesPath: (pathname: string) => pathname === "/" || pathname.startsWith("/shelf/"),
 		label: "コレクション",
 		icon: (
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 				<rect x="3" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
 				<rect x="13" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
 				<rect x="3" y="14" width="8" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
@@ -38,7 +38,7 @@ const TABS = [
 		matchesPath: (pathname: string) => pathname.startsWith("/calendar"),
 		label: "カレンダー",
 		icon: (
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 				<rect x="3.5" y="5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.6" />
 				<path d="M3.5 9.5h17" stroke="currentColor" strokeWidth="1.6" />
 				<path d="M8 3v3.5M16 3v3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -50,7 +50,7 @@ const TABS = [
 		matchesPath: (pathname: string) => pathname.startsWith("/profile"),
 		label: "プロフィール",
 		icon: (
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 				<circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6" />
 				<path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
 			</svg>
@@ -95,11 +95,12 @@ export function BottomNav() {
 					display: "flex",
 					alignItems: "center",
 					// ピルはflex:1で残りの幅いっぱいに伸ばし、⊕ボタンとの隙間を
-					// gap:10pxの固定値にする(space-betweenだと画面幅次第で
-					// 隙間が広がりすぎるため、固定値+ピルを伸ばす方式にした)。
+					// 固定値にする(space-betweenだと画面幅次第で隙間が広がりすぎる
+					// ため、固定値+ピルを伸ばす方式にした)。参考デザイン(Shelf Home)
+					// を実測すると隙間は10pxよりかなり広かったため、space-6(24px)に変更
 					// 左右のpaddingはカードグリッドの左右端(var(--space-2))から、
 					// さらに10pxだけ内側に寄せている
-					gap: "10px",
+					gap: "var(--space-6)",
 					maxWidth: 640,
 					margin: "0 auto",
 					padding: "0 calc(var(--space-2) + 10px)",
