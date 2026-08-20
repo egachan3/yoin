@@ -43,7 +43,9 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 				flexDirection: "column",
 			}}
 		>
-			<div style={{ position: "relative", flex: 1, background: "var(--color-accent-100)" }}>
+			{/* 画像エリアはカード全体(.card、背景var(--color-surface))と同じ
+			    背景にして、下部テキスト欄との色の境目をなくす(ユーザー指摘) */}
+			<div style={{ position: "relative", flex: 1 }}>
 				{stack.map((entry, i) => {
 					const depthFromFront = stack.length - 1 - i;
 					const fan = FAN_LAYOUT[depthFromFront] ?? FAN_LAYOUT[FAN_LAYOUT.length - 1];
