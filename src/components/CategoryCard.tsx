@@ -77,7 +77,6 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 										left: "50%",
 										transform: "translate(-50%, -50%)",
 										width: "40%",
-										height: "40%",
 									}}
 								/>
 							)}
