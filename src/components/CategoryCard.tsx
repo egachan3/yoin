@@ -4,7 +4,10 @@ import { resolveEntryImageSrc, isPlaceholderIconSrc } from "@/lib/entry-image";
 
 // 直近3件(RECENT_ENTRIES_PER_CATEGORY)を前提にした扇状の重なり方。
 // 手前(最新)を中央に正立させ、奥の2件を左右に振り分けて少し回転させる
-// (global-design-system.mdの参考デザインのカード表現に寄せた構図)
+// (global-design-system.mdの参考デザインのカード表現に寄せた構図)。
+// RECENT_ENTRIES_PER_CATEGORYを増やす場合、この配列も同じ要素数に
+// 拡張しないと、超過分が末尾の要素と完全に同じ位置・角度で重なり
+// 見た目上「消えた」ように見えるので注意
 const FAN_LAYOUT = [
 	{ rotate: 0, offsetX: 0, offsetY: 0 },
 	{ rotate: -7, offsetX: -19, offsetY: 3 },
