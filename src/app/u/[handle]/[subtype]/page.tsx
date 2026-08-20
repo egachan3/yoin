@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -75,6 +76,12 @@ export default async function PublicCategoryDetailPage({
 					))}
 				</div>
 			)}
+
+			{/* 未ログインの訪問者は設定画面(TMDB帰属表示の集約先)に到達できないため、
+			    ログイン不要のこのページから/aboutへの導線を用意する */}
+			<Link href="/about" className="text-muted" style={{ display: "inline-block", fontSize: 12, marginTop: "var(--space-8)" }}>
+				このアプリについて
+			</Link>
 		</main>
 	);
 }
