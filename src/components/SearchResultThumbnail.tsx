@@ -11,7 +11,7 @@ interface SearchResultThumbnailProps {
 
 export function SearchResultThumbnail({ src, alt, aspectRatio = "2 / 3" }: SearchResultThumbnailProps) {
 	const boxStyle: React.CSSProperties = {
-		width: 56,
+		width: 72,
 		flexShrink: 0,
 		// 横並びカード(flex-direction: row)の中で.cardの既定align-items: stretchが
 		// 効くと、隣接するテキスト列の高さに合わせてサムネイルまで縦に引き伸ばされ、

@@ -51,27 +51,22 @@ export default async function PublicCategoryDetailPage({
 			{entries.length === 0 ? (
 				<p className="text-muted">まだ何も記録がありません。</p>
 			) : (
-				<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+				<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
 					{entries.map((entry) => (
-						<div key={entry.id} className="card" style={{ flexDirection: "row" }}>
-							<SearchResultThumbnail
-								src={resolveEntryImageSrc(entry)}
-								alt={entry.title}
-								aspectRatio={entry.subtype === "album" || entry.subtype === "song" ? "1 / 1" : "2 / 3"}
-							/>
-							<div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
-								<p className="card-title">{entry.title}</p>
-								{entry.rating && (
-									<p className="card-meta">
-										{"★".repeat(entry.rating)}
-										{"☆".repeat(5 - entry.rating)}
-									</p>
-								)}
-								{entry.comment && <p style={{ fontSize: 13, margin: 0 }}>{entry.comment}</p>}
-								{session?.user.id !== access.ownerId && (
-									<ReportButton targetType="entry" targetId={entry.id} isLoggedIn={session != null} />
-								)}
-							</div>
+						<div key={entry.id} className="card" style={{ padding: "var(--space-3)", borderRadius: "var(--radius-image)", borderColor: "var(--color-neutral-400)" }}>
+							<Link href={`/u/${access.ownerHandle}/entries/${entry.id}`} style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "var(--space-3)", color: "inherit", textDecoration: "none" }}>
+								<SearchResultThumbnail
+									src={resolveEntryImageSrc(entry)}
+									alt={entry.title}
+									aspectRatio={entry.subtype === "album" || entry.subtype === "song" ? "1 / 1" : "2 / 3"}
+								/>
+								<div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0, flex: 1 }}>
+									<p className="card-title">{entry.title}</p>
+									{entry.rating && <p className="card-meta">{"★".repeat(entry.rating)}{"☆".repeat(5 - entry.rating)}</p>}
+									{entry.comment && <p style={{ fontSize: 13, margin: 0 }}>{entry.comment}</p>}
+								</div>
+							</Link>
+							{session?.user.id !== access.ownerId && <ReportButton targetType="entry" targetId={entry.id} isLoggedIn={session != null} />}
 						</div>
 					))}
 				</div>

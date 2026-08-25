@@ -211,6 +211,22 @@ textarea.input { min-height: 90px; resize: vertical; }
 .elev-md { box-shadow: var(--shadow-md); }
 .elev-lg { box-shadow: var(--shadow-lg); }
 
+.entry-detail-back {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-divider);
+  text-decoration: none; margin-bottom: var(--space-6);
+}
+.entry-detail-stack { display: flex; flex-direction: column; gap: var(--space-5); }
+.entry-detail-art {
+  width: min(100%, 430px); margin: 0 auto; border-radius: var(--radius-image); overflow: hidden;
+  background: var(--color-neutral-200); display: grid; place-items: center; border: 1px solid var(--color-neutral-400);
+}
+.entry-detail-heading { text-align: center; padding-inline: var(--space-2); }
+.entry-detail-heading h1 { font-size: clamp(28px, 7vw, 40px); margin: 0 0 var(--space-2); text-wrap: balance; }
+.entry-detail-heading p { margin: 0; }
+.entry-detail-meta { gap: var(--space-5); border-radius: var(--radius-sm); }
+.entry-detail-rating { font-size: 22px; letter-spacing: 2px; margin: 0; }
+
 .tag {
   display: inline-flex; align-items: center; font-size: 11px;
   letter-spacing: 0.02em; padding: 3px 10px;
