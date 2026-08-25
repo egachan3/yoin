@@ -8,9 +8,6 @@ import { CategorySheet } from "./CategorySheet";
 // バー全体(浮いた余白込み)の高さ(px)。layout.tsx側の本文paddingBottomと
 // 同じ値を参照させることで、どちらか一方だけ変更してズレる事故を防ぐ
 export const BOTTOM_NAV_HEIGHT = 96;
-// 固定バーと最後のコンテンツが視覚的に接触しないための本文側クリアランス。
-// バー自体の高さには含めず、スクロール終端にだけ追加する。
-export const BOTTOM_NAV_CLEARANCE = 24;
 // 【2026-08-20訂正】以前はスクリーンショットの目視ズームから64pxと推測して
 // いたが、Shelf+Home.dc.html(Claude Designの書き出しHTML本体、ユーザー提供)
 // を直接確認したところ実際は「padding:6px」+タブ内padding「8px 0 7px」等の

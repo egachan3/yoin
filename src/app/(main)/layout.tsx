@@ -1,4 +1,4 @@
-import { BOTTOM_NAV_CLEARANCE, BOTTOM_NAV_HEIGHT, BottomNav } from "@/components/BottomNav";
+import { BOTTOM_NAV_HEIGHT, BottomNav } from "@/components/BottomNav";
 
 /**
  * 主要3画面(棚・カレンダー・プロフィール)専用のレイアウト。
@@ -10,9 +10,7 @@ import { BOTTOM_NAV_CLEARANCE, BOTTOM_NAV_HEIGHT, BottomNav } from "@/components
 export default function MainLayout({ children }: { children: React.ReactNode }) {
 	return (
 		<>
-			{/* 固定表示の下部バーと追加のクリアランスぶん、本文が隠れないよう
-			    余白を確保する。高さはBottomNav側の定数を参照する */}
-			<div style={{ paddingBottom: `calc(${BOTTOM_NAV_HEIGHT + BOTTOM_NAV_CLEARANCE}px + env(safe-area-inset-bottom))` }}>{children}</div>
+			<div>{children}</div>
 			<BottomNav />
 		</>
 	);
