@@ -10,8 +10,8 @@ import { resolveEntryImageSrc, isPlaceholderIconSrc } from "@/lib/entry-image";
 // 見た目上「消えた」ように見えるので注意
 const FAN_LAYOUT = [
 	{ rotate: 0, offsetX: 0, offsetY: 0 },
-	{ rotate: -7, offsetX: -19, offsetY: 3 },
-	{ rotate: 7, offsetX: 19, offsetY: 5 },
+	{ rotate: -7, offsetX: -35, offsetY: 3 },
+	{ rotate: 7, offsetX: 35, offsetY: 5 },
 ] as const;
 
 /**
@@ -58,7 +58,7 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 							key={entry.id}
 							style={{
 								position: "absolute",
-								width: "62%",
+								width: "70%",
 								aspectRatio: aspectRatioFor(entry.subtype),
 								left: "50%",
 								top: "50%",
