@@ -31,7 +31,7 @@ export default async function Home() {
 	const categories = summarizeByCategory(entries, counts);
 
 	return (
-		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-6) var(--space-4)" }}>
+		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-6) var(--space-4) 180px" }}>
 			<header style={{ display: "grid", gridTemplateColumns: "48px 1fr 48px", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-8)" }}>
 				<LinkCircle href="/profile" label="プロフィール">
 					<svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8"/><path d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
