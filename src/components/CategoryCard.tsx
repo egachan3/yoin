@@ -37,6 +37,8 @@ export function CategoryCard({ category, href }: { category: CategorySummary; hr
 				aspectRatio: "565 / 900",
 				padding: 0,
 				overflow: "hidden",
+				borderRadius: "var(--radius-sm)",
+				borderColor: "var(--color-neutral-700)",
 				textDecoration: "none",
 				color: "inherit",
 				display: "flex",

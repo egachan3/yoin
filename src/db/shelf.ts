@@ -81,6 +81,22 @@ export async function listShelfEntriesBySubtype(db: Kysely<Database>, userId: st
 }
 
 /**
+ * 本人の棚にある1件を取得する(作品個別詳細画面用)。
+ * userIdも条件に含め、他ユーザーの非公開エントリをID推測で閲覧できない
+ * ようにする。公開棚の詳細画面を追加する場合は、公開可否を確認した別クエリ
+ * を用意すること。
+ */
+export async function findShelfEntryById(db: Kysely<Database>, userId: string, entryId: string) {
+	return db
+		.selectFrom("shelf_entries")
+		.innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
+		.select(SHELF_ENTRY_SELECT)
+		.where("shelf_entries.user_id", "=", userId)
+		.where("shelf_entries.id", "=", entryId)
+		.executeTakeFirst();
+}
+
+/**
  * added_atが[startInclusive, endExclusive)の範囲にある棚エントリ一覧
  * (カレンダー画面用)。範囲はjstMonthRange()で日本時間の月初〜翌月初を
  * 渡す想定。1ヶ月分なので件数の上限は設けていない。
