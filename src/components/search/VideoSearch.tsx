@@ -69,6 +69,7 @@ export function VideoSearch({ subtype }: { subtype: VideoSubtype }) {
 				tmdbId: candidate.tmdbId,
 				rating: review.rating,
 				comment: review.comment,
+				isPublic: review.isPublic,
 			}),
 		});
 		setAddingId(null);

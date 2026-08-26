@@ -15,6 +15,7 @@ const AddMovieSchema = z
     tmdbId: z.number().int().positive(),
   })
   .extend(ReviewFieldsSchema.shape);
+const AddMovieSchemaWithVisibility = AddMovieSchema.extend({ isPublic: z.boolean().optional() });
 
 async function verifyMovieCandidate(mediaType: "movie" | "tv", tmdbId: number, apiKey: string): Promise<TmdbCandidate | null> {
   return mediaType === "movie" ? verifyMovieById(tmdbId, apiKey) : verifyTvById(tmdbId, apiKey);
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const parsed = AddMovieSchema.safeParse(body);
+  const parsed = AddMovieSchemaWithVisibility.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
   }
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
       revisit_count: 0,
       comment: review.comment,
       rating: review.rating,
+      is_public: parsed.data.isPublic === false ? 0 : 1,
       estimated_duration_seconds: duration.estimatedSeconds,
       duration_pending: duration.pending,
       raw_duration_value: duration.rawValue,

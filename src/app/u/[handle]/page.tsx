@@ -40,8 +40,8 @@ export default async function PublicShelfPage({ params }: { params: Promise<{ ha
 	}
 
 	const [entries, counts] = await Promise.all([
-		listShelfEntries(db, access.ownerId),
-		listCategoryCounts(db, access.ownerId),
+		listShelfEntries(db, access.ownerId, true),
+		listCategoryCounts(db, access.ownerId, true),
 	]);
 	const categories = summarizeByCategory(entries, counts);
 

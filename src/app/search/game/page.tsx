@@ -74,7 +74,7 @@ export default function GameSearchPage() {
 			const res = await fetch("/api/shelf/games", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ igdbId: candidate.igdbId, rating: review.rating, comment: review.comment }),
+			body: JSON.stringify({ igdbId: candidate.igdbId, rating: review.rating, comment: review.comment, isPublic: review.isPublic }),
 			});
 			if (res.ok) {
 				router.push("/");

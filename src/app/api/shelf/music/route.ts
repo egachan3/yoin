@@ -17,7 +17,8 @@ const AddMusicSchema = z
     sourceId: z.string().min(1).max(100),
     entityType: z.enum(["song", "album"]),
   })
-  .extend(ReviewFieldsSchema.shape);
+  .extend(ReviewFieldsSchema.shape)
+  .extend({ isPublic: z.boolean().optional() });
 
 /**
  * クライアントが送ってきたID(MBIDまたはiTunes numeric id)を、各ソースへの
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       revisit_count: 0,
       comment: review.comment,
       rating: review.rating,
+      is_public: parsed.data.isPublic === false ? 0 : 1,
       estimated_duration_seconds: estimatedSeconds,
       duration_pending: lengthMs === null ? 1 : 0,
       raw_duration_value: lengthMs !== null ? String(lengthMs) : null,

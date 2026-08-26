@@ -18,6 +18,8 @@ const AddBookSchema = z
     isbn: z.string().max(20).nullable(),
   })
   .extend(ReviewFieldsSchema.shape);
+// 公開設定は作品単位。未指定の既存クライアントは公開扱いにする。
+const AddBookSchemaWithVisibility = AddBookSchema.extend({ isPublic: z.boolean().optional() });
 
 export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const parsed = AddBookSchema.safeParse(body);
+  const parsed = AddBookSchemaWithVisibility.safeParse(body);
   if (!parsed.success) {
     return Response.json({ error: "invalid_body", message: "入力内容が不正です。" }, { status: 422 });
   }
@@ -85,6 +87,7 @@ export async function POST(request: Request) {
         revisit_count: 0,
         comment: review.comment,
         rating: review.rating,
+        is_public: parsed.data.isPublic === false ? 0 : 1,
         estimated_duration_seconds: estimatedSeconds,
         // extentがパースできなかった場合はduration_pending=1
         // (将来のパーサー改善や手動修正で埋まり得るという扱い。

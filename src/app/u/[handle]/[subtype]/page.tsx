@@ -39,7 +39,7 @@ export default async function PublicCategoryDetailPage({
 		);
 	}
 
-	const entries = await listShelfEntriesBySubtype(db, access.ownerId, subtypeParam);
+	const entries = await listShelfEntriesBySubtype(db, access.ownerId, subtypeParam, true);
 
 	return (
 		<main style={{ maxWidth: 640, margin: "0 auto", padding: "var(--space-8) var(--space-4)" }}>

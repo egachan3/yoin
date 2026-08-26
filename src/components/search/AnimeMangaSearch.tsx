@@ -137,6 +137,7 @@ export function AnimeMangaSearch({ subtype }: { subtype: MediaType }) {
 					malId: candidate.malId,
 					rating: review.rating,
 					comment: review.comment,
+					isPublic: review.isPublic,
 				}),
 			});
 			if (res.ok) {
