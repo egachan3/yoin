@@ -50,3 +50,7 @@ next-env.d.ts
 
 
 !.dev.vars.example
+
+# Claude Code local settings (launch.json, worktrees等、リポジトリに含める必要のない
+# ローカル開発ツール設定)
+.claude/
