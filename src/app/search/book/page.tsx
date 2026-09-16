@@ -132,7 +132,7 @@ export default function BookSearchPage() {
 		const res = await fetch("/api/shelf/books", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ ...requestBody, rating: review.rating, comment: review.comment }),
+			body: JSON.stringify({ ...requestBody, rating: review.rating, comment: review.comment, isPublic: review.isPublic }),
 		});
 		setAddingId(null);
 		if (res.ok) {

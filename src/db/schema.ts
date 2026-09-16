@@ -123,6 +123,8 @@ export interface ShelfEntryTable {
   comment: string | null;
   // 5段階(1〜5)
   rating: number | null;
+  // 作品単位の公開設定(0=非公開、1=公開)。コレクション全体の公開設定とは別。
+  is_public: ColumnType<SqliteBoolean, SqliteBoolean | undefined, SqliteBoolean>;
   estimated_duration_seconds: number | null;
   duration_pending: ColumnType<SqliteBoolean, SqliteBoolean | undefined, SqliteBoolean>;
   raw_duration_value: string | null;

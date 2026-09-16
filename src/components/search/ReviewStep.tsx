@@ -7,6 +7,7 @@ import { COMMENT_MAX_LENGTH } from "@/lib/review";
 export interface ReviewValues {
 	rating: number | null;
 	comment: string | null;
+	isPublic: boolean;
 }
 
 /**
@@ -26,9 +27,22 @@ export function ReviewStep({
 }) {
 	const [rating, setRating] = useState<number | null>(null);
 	const [comment, setComment] = useState("");
+	const [isPublic, setIsPublic] = useState(true);
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+			<fieldset style={{ border: 0, padding: 0, margin: 0 }} disabled={submitting}>
+				<legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>この作品の公開設定</legend>
+				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+					{([true, false] as const).map((value) => (
+						<label key={String(value)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", border: "1px solid", borderColor: isPublic === value ? "var(--color-text)" : "var(--color-divider)", borderRadius: "var(--radius-md)", background: isPublic === value ? "var(--color-neutral-200)" : "transparent", cursor: "pointer", fontSize: 13 }}>
+							<input type="radio" name="entry-visibility" checked={isPublic === value} onChange={() => setIsPublic(value)} />
+							{value ? "公開" : "非公開"}
+						</label>
+					))}
+				</div>
+				<p className="card-meta" style={{ margin: "6px 0 0" }}>非公開にした作品は公開コレクションに表示されません。</p>
+			</fieldset>
 			<StarRating value={rating} onChange={setRating} disabled={submitting} />
 			<div>
 				<textarea
@@ -54,7 +68,7 @@ export function ReviewStep({
 					type="button"
 					className="btn btn-primary"
 					style={{ flex: 1 }}
-					onClick={() => onSubmit({ rating, comment: comment.trim() || null })}
+					onClick={() => onSubmit({ rating, comment: comment.trim() || null, isPublic })}
 					disabled={submitting}
 				>
 					{submitting ? "追加中…" : "追加する"}

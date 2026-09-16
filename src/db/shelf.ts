@@ -35,12 +35,13 @@ const SHELF_ENTRY_SELECT = [
  */
 export type ShelfEntryRow = Awaited<ReturnType<typeof listShelfEntries>>[number];
 
-export async function listShelfEntries(db: Kysely<Database>, userId: string) {
+export async function listShelfEntries(db: Kysely<Database>, userId: string, publicOnly = false) {
   return db
     .selectFrom("shelf_entries")
     .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
     .select(SHELF_ENTRY_SELECT)
     .where("shelf_entries.user_id", "=", userId)
+    .$if(publicOnly, (query) => query.where("shelf_entries.is_public", "=", 1))
     .orderBy("shelf_entries.added_at", "desc")
     .limit(100)
     .execute();
@@ -54,12 +55,13 @@ export async function listShelfEntries(db: Kysely<Database>, userId: string) {
  */
 export type CategoryCountRow = Awaited<ReturnType<typeof listCategoryCounts>>[number];
 
-export async function listCategoryCounts(db: Kysely<Database>, userId: string) {
+export async function listCategoryCounts(db: Kysely<Database>, userId: string, publicOnly = false) {
   return db
     .selectFrom("shelf_entries")
     .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
     .select(["catalog_entities.subtype", (eb) => eb.fn.countAll().as("count")])
     .where("shelf_entries.user_id", "=", userId)
+    .$if(publicOnly, (query) => query.where("shelf_entries.is_public", "=", 1))
     .groupBy("catalog_entities.subtype")
     .execute();
 }
@@ -69,13 +71,14 @@ export async function listCategoryCounts(db: Kysely<Database>, userId: string) {
  * こちらはカテゴリを跨がないので、DB側でsubtypeを絞り込む専用クエリにする
  * (1カテゴリに100件を超える記録がある場合でも取りこぼさないため)。
  */
-export async function listShelfEntriesBySubtype(db: Kysely<Database>, userId: string, subtype: Subtype) {
+export async function listShelfEntriesBySubtype(db: Kysely<Database>, userId: string, subtype: Subtype, publicOnly = false) {
   return db
     .selectFrom("shelf_entries")
     .innerJoin("catalog_entities", "catalog_entities.id", "shelf_entries.catalog_id")
     .select(SHELF_ENTRY_SELECT)
     .where("shelf_entries.user_id", "=", userId)
     .where("catalog_entities.subtype", "=", subtype)
+    .$if(publicOnly, (query) => query.where("shelf_entries.is_public", "=", 1))
     .orderBy("shelf_entries.added_at", "desc")
     .execute();
 }

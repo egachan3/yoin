@@ -23,7 +23,8 @@ const AddAnimeMangaSchema = z
     mediaType: z.enum(["anime", "manga"]),
     malId: z.number().int().positive(),
   })
-  .extend(ReviewFieldsSchema.shape);
+  .extend(ReviewFieldsSchema.shape)
+  .extend({ isPublic: z.boolean().optional() });
 
 export async function POST(request: Request) {
   const { env } = await getCloudflareContext({ async: true });
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
       revisit_count: 0,
       comment: review.comment,
       rating: review.rating,
+      is_public: parsed.data.isPublic === false ? 0 : 1,
       estimated_duration_seconds: duration.estimatedSeconds,
       duration_pending: duration.pending,
       raw_duration_value: duration.rawValue,

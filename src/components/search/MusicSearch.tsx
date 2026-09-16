@@ -101,6 +101,7 @@ export function MusicSearch({ subtype }: { subtype: MusicSubtype }) {
 				entityType: subtype,
 				rating: review.rating,
 				comment: review.comment,
+				isPublic: review.isPublic,
 			}),
 		});
 		setAddingId(null);
